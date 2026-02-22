@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: |
-          source ./tool.sh
+          source ./tool/tool.sh
           build_image labnow-oss-dev latest ./src/labnow-oss.Dockerfile \
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
           push_image  labnow-oss-dev
