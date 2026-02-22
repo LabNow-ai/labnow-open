@@ -9,10 +9,11 @@ import {
   InlineLoading,
   InlineNotification,
   Modal,
-  OverflowMenu,
-  OverflowMenuItem,
   Tag,
   Theme,
+  Toggletip,
+  ToggletipButton,
+  ToggletipContent,
 } from "@carbon/react";
 import {
   Information,
@@ -20,6 +21,7 @@ import {
   Moon,
   PlayFilledAlt,
   Renew,
+  Restart,
   StopFilledAlt,
 } from "@carbon/icons-react";
 import { useSupervisorController } from "./hooks/useSupervisorController";
@@ -81,6 +83,13 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    document.body.style.backgroundColor = isDarkMode ? "#161616" : "#f4f4f4";
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, [isDarkMode]);
 
   const handleToggleAll = () => {
     if (allSelected) {
@@ -216,11 +225,23 @@ export default function App() {
 
   return (
     <Theme theme={isDarkMode ? "g100" : "g10"}>
+      <div className="app-shell">
       <Header aria-label="LabNow Supervisor Console">
         <HeaderName href="#" prefix="LabNow">
           Console (OSS)
         </HeaderName>
         <HeaderGlobalBar>
+          <Toggletip>
+            <ToggletipButton
+              className="header-toggletip-button"
+              label="Show API Base information"
+            >
+              <Information size={20} />
+            </ToggletipButton>
+            <ToggletipContent>
+              <p className="header-toggletip-content">API Base: {apiBase}</p>
+            </ToggletipContent>
+          </Toggletip>
           <HeaderGlobalAction
             aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
             tooltipAlignment="end"
@@ -228,20 +249,37 @@ export default function App() {
           >
             {isDarkMode ? <Light size={20} /> : <Moon size={20} />}
           </HeaderGlobalAction>
-          <OverflowMenu
-            ariaLabel="API Base information"
-            size="md"
-            renderIcon={Information}
-          >
-            <OverflowMenuItem itemText={`API Base: ${apiBase}`} disabled />
-          </OverflowMenu>
         </HeaderGlobalBar>
       </Header>
 
       <Content id="main-content" className="page-content">
         <div className="section">
           <div className="section-top">
-            <h2 className="section-title">Programs</h2>
+            <h2 className="section-title">LabNow Programs</h2>
+            <div className="section-top-actions">
+              <Button
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                iconDescription="Reload Supervisor"
+                renderIcon={Restart}
+                tooltipAlignment="end"
+                tooltipPosition="bottom"
+                title="Reload Supervisor"
+                onClick={openReloadConfirm}
+              />
+              <Button
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                iconDescription="Refresh Status"
+                renderIcon={Renew}
+                tooltipAlignment="end"
+                tooltipPosition="bottom"
+                title="Refresh Status"
+                onClick={refreshPrograms}
+              />
+            </div>
           </div>
 
           <NotificationBar notice={notice} onClose={() => setNotice(null)} />
@@ -253,14 +291,8 @@ export default function App() {
             <Button kind="secondary" onClick={handleStopSelected}>
               Stop Selected
             </Button>
-            <Button kind="tertiary" onClick={openReloadConfirm}>
-              Reload
-            </Button>
             <Button kind="danger--tertiary" onClick={openShutdownConfirm}>
               Shutdown
-            </Button>
-            <Button kind="ghost" onClick={refreshPrograms}>
-              Refresh
             </Button>
             {loading ? <InlineLoading description="Loading programs..." /> : null}
           </div>
@@ -279,7 +311,6 @@ export default function App() {
                   </th>
                   <th>Program</th>
                   <th>State</th>
-                  <th>Description</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -298,12 +329,30 @@ export default function App() {
                       </td>
                       <td>{program.name}</td>
                       <td>
-                        <Tag type={running ? "green" : "red"}>
-                          {program.statename}
-                        </Tag>
+                        <div className="state-cell">
+                          <Tag type={running ? "green" : "red"}>
+                            {program.statename}
+                          </Tag>
+                          <Toggletip>
+                            <ToggletipButton
+                              className="state-toggletip-button"
+                              label={`Show details for ${program.name}`}
+                            >
+                              <Information size={16} />
+                            </ToggletipButton>
+                            <ToggletipContent>
+                              <p className="state-toggletip-title">{program.name}</p>
+                              <p className="state-toggletip-text">
+                                Description: {program.description || "-"}
+                              </p>
+                              <p className="state-toggletip-text">
+                                State: {program.statename}
+                              </p>
+                            </ToggletipContent>
+                          </Toggletip>
+                        </div>
                       </td>
-                      <td>{program.description || "-"}</td>
-                      <td>
+                      <td className="action-col">
                         <div className="row-actions">
                           <Button
                             size="sm"
@@ -365,6 +414,17 @@ export default function App() {
           <p>{confirmText.body}</p>
         </Modal>
       </Content>
+      <footer className="app-footer">
+        <span>Copyright © {new Date().getFullYear()} LabNow-ai.</span>
+        <a
+          href="https://github.com/LabNow-ai"
+          target="_blank"
+          rel="noreferrer"
+        >
+          github.com/LabNow-ai
+        </a>
+      </footer>
+      </div>
     </Theme>
   );
 }
