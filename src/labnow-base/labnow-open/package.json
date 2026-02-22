@@ -9,8 +9,9 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
-    "@ant-design/icons": "6.1.0",
-    "antd": "6.3.0",
+    "@carbon/icons-react": "^11.63.0",
+    "@carbon/react": "^1.94.0",
+    "@carbon/styles": "^1.94.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
