@@ -348,6 +348,9 @@ export default function App() {
                   const programLink = programMeta?.link;
                   const programLinkEnabled =
                     String(program.statename || "").trim().toLowerCase() === "running";
+                  const programTooltip = programLinkEnabled
+                    ? "Open the program in new browser tab"
+                    : "Please start the program first to use it!";
                   return (
                     <tr key={program.name}>
                       <td className="checkbox-col">
@@ -360,11 +363,16 @@ export default function App() {
                       </td>
                       <td>
                         {programLink && programLinkEnabled ? (
-                          <Link href={programLink} target="_blank" rel="noopener noreferrer">
+                          <Link
+                            href={programLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={programTooltip}
+                          >
                             {programLabel}
                           </Link>
                         ) : (
-                          programLabel
+                          <span title={programTooltip}>{programLabel}</span>
                         )}
                       </td>
                       <td>
