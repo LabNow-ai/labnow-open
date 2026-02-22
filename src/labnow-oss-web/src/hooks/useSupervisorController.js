@@ -62,7 +62,7 @@ export function useSupervisorController() {
         return { ok: false };
       }
 
-      patchProgramState(name, "RUNNING");
+      patchProgramState(name, "Running");
       return { ok: true };
     },
     [api, patchProgramState]
@@ -75,7 +75,7 @@ export function useSupervisorController() {
         return { ok: false };
       }
 
-      patchProgramState(name, "STOPPED");
+      patchProgramState(name, "Stopped");
       return { ok: true };
     },
     [api, patchProgramState]

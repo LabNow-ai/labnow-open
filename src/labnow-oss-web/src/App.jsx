@@ -8,6 +8,7 @@ import {
   HeaderName,
   InlineLoading,
   InlineNotification,
+  Link,
   Modal,
   Tag,
   Theme,
@@ -25,6 +26,13 @@ import {
   StopFilledAlt,
 } from "@carbon/icons-react";
 import { useSupervisorController } from "./hooks/useSupervisorController";
+
+const PROGRAM_LINK_OVERRIDES = {
+  caddy: {displayName: "Caddy Server", hidden: true },
+  jupyter: { displayName: "JupyterLab", link: "/lab", },
+  vscode: { displayName: "VS Code", link: "/vscode" },
+  rserver: { displayName: "R-Studio", link: "/rserver" },
+};
 
 function NotificationBar({ notice, onClose }) {
   if (!notice) {
@@ -66,7 +74,25 @@ export default function App() {
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const selectedSet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
-  const allSelected = programs.length > 0 && selectedRowKeys.length === programs.length;
+  const programMetaByName = useMemo(
+    () =>
+      programs.reduce((acc, program) => {
+        const override = PROGRAM_LINK_OVERRIDES[program.name];
+        acc[program.name] = {
+          displayName: program.display_name || override?.displayName || program.name,
+          link: program.link || override?.link || "",
+          hidden: override?.hidden || false,
+        };
+        return acc;
+      }, {}),
+    [programs]
+  );
+  const visiblePrograms = useMemo(
+    () => programs.filter((program) => !programMetaByName[program.name]?.hidden),
+    [programMetaByName, programs]
+  );
+  const allSelected =
+    visiblePrograms.length > 0 && selectedRowKeys.length === visiblePrograms.length;
 
   const pushNotice = (kind, title, subtitle = "") => {
     setNotice({ kind, title, subtitle });
@@ -96,7 +122,7 @@ export default function App() {
       setSelectedRowKeys([]);
       return;
     }
-    setSelectedRowKeys(programs.map((item) => item.name));
+    setSelectedRowKeys(visiblePrograms.map((item) => item.name));
   };
 
   const handleToggleOne = (name) => {
@@ -315,8 +341,13 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {programs.map((program) => {
+                {visiblePrograms.map((program) => {
                   const running = isRunningState(program.statename);
+                  const programMeta = programMetaByName[program.name];
+                  const programLabel = programMeta?.displayName || program.name;
+                  const programLink = programMeta?.link;
+                  const programLinkEnabled =
+                    String(program.statename || "").trim().toLowerCase() === "running";
                   return (
                     <tr key={program.name}>
                       <td className="checkbox-col">
@@ -327,7 +358,15 @@ export default function App() {
                           aria-label={`Select ${program.name}`}
                         />
                       </td>
-                      <td>{program.name}</td>
+                      <td>
+                        {programLink && programLinkEnabled ? (
+                          <Link href={programLink} target="_blank" rel="noopener noreferrer">
+                            {programLabel}
+                          </Link>
+                        ) : (
+                          programLabel
+                        )}
+                      </td>
                       <td>
                         <div className="state-cell">
                           <Tag type={running ? "green" : "red"}>
