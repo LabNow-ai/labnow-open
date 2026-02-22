@@ -1,6 +1,6 @@
 :80 {
     log {  # Enable access logging for all requests
-        output file /var/log/caddy.access.log {
+        output file /dev/null {
             roll_size 10mb
             roll_keep 5
             roll_keep_for 30d
@@ -13,6 +13,10 @@
       -Server
       Location-Base {$URL_PREFIX}
     }
+
+    # Redirect the root path to the user home page
+    @root path_regexp root ^{$URL_PREFIX:}/?$
+    redir @root {$URL_PREFIX:}home 307
 
     # Handle user home paths
     @path_user_home path_regexp ^{$URL_PREFIX}home/.*$
