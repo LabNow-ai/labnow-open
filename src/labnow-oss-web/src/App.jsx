@@ -18,6 +18,7 @@ import {
 } from "@carbon/react";
 import {
   Information,
+  Launch,
   Light,
   Moon,
   PlayFilledAlt,
@@ -105,7 +106,7 @@ export default function App() {
 
     const timer = setTimeout(() => {
       setNotice(null);
-    }, 6000);
+    }, 4000);
 
     return () => clearTimeout(timer);
   }, [notice]);
@@ -369,7 +370,7 @@ export default function App() {
                             rel="noopener noreferrer"
                             title={programTooltip}
                           >
-                            {programLabel}
+                            {programLabel} <Launch size={16} />
                           </Link>
                         ) : (
                           <span title={programTooltip}>{programLabel}</span>
