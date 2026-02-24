@@ -29,7 +29,7 @@ COPY ./src/labnow-oss-etc /opt/labnow-oss
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  # handle control scripts and extensions
  && (type code-server && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n" >> /opt/labnow-oss/supervisord.conf || true) \
- && (type reserver    && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"    >> /opt/labnow-oss/supervisord.conf || true) \
+ && (type rserver     && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"    >> /opt/labnow-oss/supervisord.conf || true) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-oss/supervisord.conf   /etc/supervisord/ \
  && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-oss/Caddyfile          /etc/caddy/ \
  && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json \
