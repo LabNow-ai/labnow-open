@@ -1,0 +1,87 @@
+name: build-docker-images  # Build Docker Image for LabNow OSS
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+    paths-ignore: ["*.md"]
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore: [ "*.md" ]
+  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILDKIT_PROGRESS: "plain"  # Full logs for CI build.
+  REGISTRY_SRC: ${{ vars.REGISTRY_SRC || 'docker.io' }} # For BASE_NAMESPACE of images: where to pull base images from, docker.io or other source registry URL.
+  REGISTRY_DST: ${{ vars.REGISTRY_DST || 'quay.io' }} # For tags of built images: where to push images to, docker.io or other destination registry URL.
+  # DOCKER_REGISTRY_USERNAME and DOCKER_REGISTRY_PASSWORD is required for docker image push, they should be set in CI secrets.
+  DOCKER_REGISTRY_USERNAME: ${{ vars.DOCKER_REGISTRY_USERNAME }}
+  DOCKER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+  # used to sync image to mirror registry
+  DOCKER_MIRROR_REGISTRY_USERNAME: ${{ vars.DOCKER_MIRROR_REGISTRY_USERNAME }}
+  DOCKER_MIRROR_REGISTRY_PASSWORD: ${{ secrets.DOCKER_MIRROR_REGISTRY_PASSWORD }}
+  CI_PROJECT_NAME: ${{ vars.CI_PROJECT_NAME || 'LabNow/labnow-oss' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    continue-on-error: true
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          semgrep ci --verbose \
+            --config p/ci \
+            --config p/security-audit \
+            --config p/python \
+            --config p/javascript \
+            --config p/react \
+            --config p/owasp-top-ten \
+            --exclude-rule=dockerfile.security.missing-user.missing-user
+
+  job-developer:
+    name: "labnow-oss-dev"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          source ./tool/tool.sh
+          build_image labnow-oss-dev latest ./src/labnow-oss.Dockerfile \
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
+          push_image  labnow-oss-dev
+
+  job-data-science:
+    name: "labnow-oss-data-science"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          source ./tool/tool.sh
+          build_image labnow-oss-data-science latest ./src/labnow-oss.Dockerfile \
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
+          push_image  labnow-oss-data-science
+
+
+  ## Sync all images in this build (listed by "names") to mirror registry.
+  sync_images:
+    needs: ["job-developer", "job-data-science"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - env:
+          AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
+          DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
+        run: |
+          source ./tool/tool.sh
+          printf '%s' "$AUTH_FILE_CONTENT" > .github/workflows/auth.json && ls -alh ./.github/workflows
+          printenv | grep -v 'PATH' > /tmp/docker.env && echo "REGISTRY_URL=${REGISTRY_DST}" >> /tmp/docker.env
+          docker run --rm --env-file /tmp/docker.env -v $(pwd):/tmp -w /tmp labnow/docker-kit \
+            python /opt/utils/image-syncer/run_jobs.py --auth-file=/tmp/.github/workflows/auth.json

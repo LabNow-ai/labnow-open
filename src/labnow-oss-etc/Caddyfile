@@ -1,0 +1,53 @@
+:80 {
+    log {  # Enable access logging for all requests
+        output file /dev/null {
+            roll_size 10mb
+            roll_keep 5
+            roll_keep_for 30d
+        }
+        format json
+    }
+
+    # Add a global header to all responses
+    header {
+      -Server
+      Location-Base {$URL_PREFIX}
+    }
+
+    # Redirect the root path to the user home page
+    @root path_regexp root ^{$URL_PREFIX:}/?$
+    redir @root {$URL_PREFIX:}home 307
+
+    # Handle user home paths
+    @path_user_home path_regexp ^{$URL_PREFIX}home/.*$
+    handle @path_user_home {
+        uri strip_prefix {$URL_PREFIX}home
+        reverse_proxy localhost:9001
+    }
+    @path_user_home_no_slash path_regexp ^{$URL_PREFIX}home$
+    redir @path_user_home_no_slash {path}/ 308
+
+
+    @path_user_vscode path_regexp ^{$URL_PREFIX}vscode/.*$
+    handle @path_user_vscode {  # Proxy requests to vscode, strip prefix
+        uri strip_prefix {$URL_PREFIX}vscode
+        reverse_proxy localhost:9999
+    }
+    @path_user_vscode_no_slash path_regexp ^{$URL_PREFIX}vscode$
+    redir @path_user_vscode_no_slash {path}/ 308  # Redirect paths ending in "vscode" to "vscode/"
+
+
+    @path_user_rserver path_regexp ^{$URL_PREFIX}rserver/.*$
+    handle @path_user_rserver {  # Proxy requests to rserver, strip prefix
+        uri strip_prefix {$URL_PREFIX}rserver
+        reverse_proxy localhost:8787 {
+            header_up   -X-Forwarded-Port
+        }
+    }
+    @path_user_rserver_no_slash path_regexp ^{$URL_PREFIX}rserver$
+    redir @path_user_rserver_no_slash {path}/ 308  # Redirect paths ending in "rserver" to "rserver/"
+
+    handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
+        reverse_proxy localhost:8888
+    }
+}
