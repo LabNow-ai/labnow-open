@@ -13,12 +13,13 @@ else
     export CI_PROJECT_NAMESPACE="$(dirname ${CI_PROJECT_NAME})0${CI_PROJECT_SPACE}" ;
 fi
 
-export SRC_NAMESPACE="${REGISTRY_SRC:-docker.io}"
+export IMG_NAMESPACE=$(echo "${CI_PROJECT_NAMESPACE}" | awk '{print tolower($0)}')
+export IMG_PREFIX_SRC=$(echo "${REGISTRY_SRC:-"docker.io"}" | awk '{print tolower($0)}')
 export IMG_PREFIX_DST=$(echo "${REGISTRY_DST:-"docker.io"}/${CI_PROJECT_NAMESPACE}" | awk '{print tolower($0)}')
 export TAG_SUFFIX="-$(git rev-parse --short HEAD)"
 
 echo "--------> CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"  # use different namespace for dev/prd
-echo "--------> DOCKER_SRC_NAMESPACE=${SRC_NAMESPACE}"
+echo "--------> DOCKER_IMG_PREFIX_SRC=${IMG_PREFIX_SRC}"
 echo "--------> DOCKER_IMG_PREFIX_DST=${IMG_PREFIX_DST}"
 echo "--------> DOCKER_TAG_SUFFIX=${TAG_SUFFIX}"
 
@@ -29,7 +30,7 @@ jq '.experimental=true | ."data-root"="/mnt/docker"' /etc/docker/daemon.json > /
 build_image() {
     echo "$@" ;
     IMG=$1; TAG=$2; FILE=$3; shift 3; VER=$(date +%Y.%m%d.%H%M)${TAG_SUFFIX}; WORKDIR="$(pwd)";
-    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${SRC_NAMESPACE}" "$@" "${WORKDIR}" ;
+    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${IMG_PREFIX_SRC}" "$@" "${WORKDIR}" ;
     docker tag "${IMG_PREFIX_DST}/${IMG}:${TAG}" "${IMG_PREFIX_DST}/${IMG}:${VER}" ;
 }
 
