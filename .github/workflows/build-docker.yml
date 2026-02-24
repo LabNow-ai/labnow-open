@@ -72,7 +72,7 @@ jobs:
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   sync_images:
-    needs: ["job-developer", "job-data-science-dev"]
+    needs: ["job-developer", "job-data-science"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
