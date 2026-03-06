@@ -1,0 +1,21 @@
+name: ${PROJECT_NAME:-dev-labnow-open}
+
+
+services:
+  dev-labnow-open:
+    container_name: ${CONTAINER_NAME:-dev-labnow-open}
+    hostname: ${CONTAINER_NAME:-dev-labnow-open}
+    image: quay.io/labnow/data-science-dev:latest
+    restart: always
+    environment:
+      - PROFILE_LOCALIZE=${PROFILE_LOCALIZE:-aliyun-pub}
+      - ENV_PROFILE=${ENV_PROFILE:-DEV}
+    env_file: ["../credentials/${ENV_PROFILE:-DEV}-labnow-open.env"]
+    user: "0:0"
+    ports: ["${PORT_APP:-20000}:80", "${PORT_WEB:-30000}:3000"]
+    volumes:
+      - ../../doc:/root/doc:rw
+      - ../../src:/root/src:rw
+      - ../../tool:/root/tool:rw
+    working_dir: /root/src
+    command: "tail -f /dev/null"
