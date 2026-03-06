@@ -55,7 +55,7 @@ const PROGRAM_DEFINITIONS = {
     description:
       "RStudio Server for R development and analysis. Build scripts, run models, and visualize results.",
   },
-  shiny: {
+  rshiny: {
     displayName: "R Shiny",
     link: "/rshiny",
     logo: "logo-rshiny.svg",
