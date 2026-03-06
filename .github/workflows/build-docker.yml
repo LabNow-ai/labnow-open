@@ -1,4 +1,4 @@
-name: build-docker-images  # Build Docker Image for LabNow OSS
+name: build-docker-images  # Build Docker Image for LabNow Open Source Version
 
 on:
   push:
@@ -24,7 +24,7 @@ env:
   # used to sync image to mirror registry
   DOCKER_MIRROR_REGISTRY_USERNAME: ${{ vars.DOCKER_MIRROR_REGISTRY_USERNAME }}
   DOCKER_MIRROR_REGISTRY_PASSWORD: ${{ secrets.DOCKER_MIRROR_REGISTRY_PASSWORD }}
-  CI_PROJECT_NAME: ${{ vars.CI_PROJECT_NAME || 'LabNow/labnow-oss' }}
+  CI_PROJECT_NAME: ${{ vars.CI_PROJECT_NAME || 'LabNow/labnow-open' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
 
@@ -48,26 +48,26 @@ jobs:
             --exclude-rule=dockerfile.security.missing-user.missing-user
 
   job-developer:
-    name: "labnow-oss-dev"
+    name: "labnow-open-dev"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - run: |
           source ./tool/tool.sh
-          build_image labnow-oss-dev latest ./src/labnow-oss.Dockerfile \
+          build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
-          push_image  labnow-oss-dev
+          push_image  labnow-open-dev
 
   job-data-science:
-    name: "labnow-oss-data-science"
+    name: "labnow-open-data-science"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - run: |
           source ./tool/tool.sh
-          build_image labnow-oss-data-science latest ./src/labnow-oss.Dockerfile \
+          build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
-          push_image  labnow-oss-data-science
+          push_image  labnow-open-data-science
 
 
   ## Sync all images in this build (listed by "names") to mirror registry.

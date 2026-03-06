@@ -47,6 +47,18 @@
     @path_user_rserver_no_slash path_regexp ^{$URL_PREFIX}rserver$
     redir @path_user_rserver_no_slash {path}/ 308  # Redirect paths ending in "rserver" to "rserver/"
 
+
+    @path_user_rshiny path_regexp ^{$URL_PREFIX}rshiny/.*$
+    handle @path_user_rshiny {  # Proxy requests to rshiny, strip prefix
+        uri strip_prefix {$URL_PREFIX}rshiny
+        reverse_proxy localhost:3838 {
+            header_up   -X-Forwarded-Port
+        }
+    }
+    @path_user_rshiny_no_slash path_regexp ^{$URL_PREFIX}rshiny$
+    redir @path_user_rshiny_no_slash {path}/ 308  # Redirect paths ending in "rshiny" to "rshiny/"
+
+
     handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
         reverse_proxy localhost:8888
     }

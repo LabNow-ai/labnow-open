@@ -2,6 +2,7 @@ extension-template
 *.bundle.*
 lib/
 node_modules/
+.pnpm-store/
 *.log
 .eslintcache
 .stylelintcache

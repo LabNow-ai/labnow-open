@@ -17,9 +17,12 @@ import {
   ToggletipContent,
 } from "@carbon/react";
 import {
+  DocumentExport,
   Information,
   Launch,
   Light,
+  LogoGithub,
+  LogoX,
   Moon,
   PlayFilledAlt,
   Renew,
@@ -33,7 +36,38 @@ const PROGRAM_LINK_OVERRIDES = {
   jupyter: { displayName: "JupyterLab", link: "/lab", },
   vscode: { displayName: "VS Code", link: "/vscode" },
   rserver: { displayName: "R-Studio", link: "/rserver" },
+  shiny: { displayName: "R Shiny", link: "/rshiny" },
 };
+
+const PROGRAM_LOGO_BY_NAME = {
+  jupyter: "logo-jupyter.svg",
+  vscode: "logo-vscode.svg",
+  rserver: "logo-rserver.svg",
+  shiny: "logo-rshiny.svg",
+};
+
+function normalizeBaseUrl(baseUrl) {
+  if (!baseUrl) {
+    return "/";
+  }
+  return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+}
+
+function buildPrefixedPath(path) {
+  if (!path) {
+    return "";
+  }
+  if (/^(https?:)?\/\//.test(path)) {
+    return path;
+  }
+
+  const runtimeBase =
+    (typeof window !== "undefined" && window.__LABNOW_URL_PREFIX__) ||
+    import.meta.env.BASE_URL;
+  const normalizedBase = normalizeBaseUrl(runtimeBase);
+  const normalizedPath = String(path).replace(/^\/+/, "");
+  return `${normalizedBase}${normalizedPath}`;
+}
 
 function NotificationBar({ notice, onClose }) {
   if (!notice) {
@@ -253,11 +287,18 @@ export default function App() {
   return (
     <Theme theme={isDarkMode ? "g100" : "g10"}>
       <div className="app-shell">
-      <Header aria-label="LabNow Supervisor Console">
-        <HeaderName href="#" prefix="LabNow">
-          Console (OSS)
+      <Header aria-label="LabNow Console - Open Source Version">
+        <HeaderName href="#" prefix="">
+          <img
+            className="header-brand-logo"
+            src={buildPrefixedPath("favicon.svg")}
+            alt=""
+            aria-hidden="true"
+          />
+          Console (Open Source Version)
         </HeaderName>
         <HeaderGlobalBar>
+          
           <Toggletip>
             <ToggletipButton
               className="header-toggletip-button"
@@ -276,13 +317,22 @@ export default function App() {
           >
             {isDarkMode ? <Light size={20} /> : <Moon size={20} />}
           </HeaderGlobalAction>
+          <HeaderGlobalAction
+            aria-label="Open documentation"
+            tooltipAlignment="end"
+            onClick={() =>
+              window.open("https://doc.labnow.ai", "_blank", "noopener,noreferrer")
+            }
+          >
+            <DocumentExport size={20} />
+          </HeaderGlobalAction>
         </HeaderGlobalBar>
       </Header>
 
       <Content id="main-content" className="page-content">
         <div className="section">
           <div className="section-top">
-            <h2 className="section-title">LabNow Programs</h2>
+            <h2 className="section-title">LabNow Programs (Open Source Version)</h2>
             <div className="section-top-actions">
               <Button
                 kind="ghost"
@@ -347,11 +397,25 @@ export default function App() {
                   const programMeta = programMetaByName[program.name];
                   const programLabel = programMeta?.displayName || program.name;
                   const programLink = programMeta?.link;
+                  const programLogo = PROGRAM_LOGO_BY_NAME[program.name];
                   const programLinkEnabled =
                     String(program.statename || "").trim().toLowerCase() === "running";
                   const programTooltip = programLinkEnabled
                     ? "Open the program in new browser tab"
                     : "Please start the program first to use it!";
+                  const programLabelContent = (
+                    <span className="program-label">
+                      {programLogo ? (
+                        <img
+                          className="program-logo"
+                          src={buildPrefixedPath(programLogo)}
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      <span>{programLabel}</span>
+                    </span>
+                  );
                   return (
                     <tr key={program.name}>
                       <td className="checkbox-col">
@@ -370,10 +434,10 @@ export default function App() {
                             rel="noopener noreferrer"
                             title={programTooltip}
                           >
-                            {programLabel} <Launch size={16} />
+                            {programLabelContent} <Launch size={16} />
                           </Link>
                         ) : (
-                          <span title={programTooltip}>{programLabel}</span>
+                          <span title={programTooltip}>{programLabelContent}</span>
                         )}
                       </td>
                       <td>
@@ -463,14 +527,40 @@ export default function App() {
         </Modal>
       </Content>
       <footer className="app-footer">
-        <span>Copyright © {new Date().getFullYear()} LabNow-ai.</span>
-        <a
-          href="https://github.com/LabNow-ai"
-          target="_blank"
-          rel="noreferrer"
-        >
-          github.com/LabNow-ai
-        </a>
+        <div className="app-footer-content">
+          <span>Copyright © 2024-{new Date().getFullYear()}</span>
+          <a
+            className="footer-link"
+            href="https://labnow.ai"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open LabNow Official Website"
+            title="labnow.ai"
+          ><span>LabNow.ai</span></a>
+
+          <a
+            className="footer-link"
+            href="https://github.com/LabNow-ai"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open LabNow-ai on GitHub"
+            title="github.com/LabNow-ai"
+          >
+            <LogoGithub size={18} />
+            <span>LabNow-ai</span>
+          </a>
+          <a
+            className="footer-link footer-link-icon-only"
+            href="https://x.com/LabNowAi"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open LabNowAi on X"
+            title="x.com/LabNowAi"
+          >
+            <LogoX size={18} />
+            <span>LabNowAi</span>
+          </a>
+        </div>
       </footer>
       </div>
     </Theme>
