@@ -8,8 +8,6 @@ services:
     image: quay.io/labnow/data-science-dev:latest
     restart: always
     environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONDONTWRITEBYTECODE=1
       - PROFILE_LOCALIZE=${PROFILE_LOCALIZE:-aliyun-pub}
       - ENV_PROFILE=${ENV_PROFILE:-DEV}
     env_file: ["../credentials/${ENV_PROFILE:-DEV}-labnow-open.env"]

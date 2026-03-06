@@ -1,0 +1,12 @@
+name: ${PROJECT_NAME:-labnow-open}
+
+
+services:
+  labnow-open:
+    container_name: ${CONTAINER_NAME:-labnow-open}
+    hostname: ${CONTAINER_NAME:-labnow-open}
+    image: quay.io/labnow0dev/labnow-open-data-science:latest
+    restart: always
+    environment:
+      - PROFILE_LOCALIZE=${PROFILE_LOCALIZE:-aliyun-pub}
+    ports: ["8888:80"]
