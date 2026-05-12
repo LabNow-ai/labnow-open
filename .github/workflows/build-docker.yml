@@ -8,6 +8,8 @@ on:
   pull_request:
     branches: [ "main" ]
     paths-ignore: [ "*.md" ]
+  schedule: # Run workflow every 2 weeks at 00:00 UTC on Sunday
+    - cron: '0 0 * * 0'
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
 
 concurrency:
