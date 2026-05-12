@@ -17,5 +17,6 @@ services:
       - ../../doc:/root/doc:rw
       - ../../src:/root/src:rw
       - ../../tool:/root/tool:rw
+      - "$HOME/.claude:/root/.claude:rw"
     working_dir: /root/src
     command: "tail -f /dev/null"
