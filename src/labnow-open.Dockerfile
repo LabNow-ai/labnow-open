@@ -17,9 +17,7 @@ RUN set -eux \
  && cd /tmp/labnow-open-web \
  && export CI=true \
  && pnpm config set ignore-scripts false \
- && pnpm config set auto-install-peers true \
- && pnpm config set strict-peer-dependencies false \
- && pnpm install --script-shell="/bin/sh" \
+ && pnpm install --no-strict-peer-dependencies \
  && URL_PREFIX='/home' npm run build \
  && ls -alh /tmp/labnow-open-web/dist
 
