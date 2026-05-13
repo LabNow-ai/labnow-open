@@ -38,7 +38,7 @@ jobs:
     continue-on-error: true
     if: (github.actor != 'dependabot[bot]')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - run: |
           semgrep ci --verbose \
             --config p/ci \
@@ -53,7 +53,7 @@ jobs:
     name: "labnow-open-dev"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
@@ -64,7 +64,7 @@ jobs:
     name: "labnow-open-data-science"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
@@ -77,7 +77,7 @@ jobs:
     needs: ["job-developer", "job-data-science"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - env:
           AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
           DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
