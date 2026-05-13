@@ -25,7 +25,6 @@ FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS runtime
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
-ENV STATIC_DIR=/opt/labnow-open/web
 
 COPY --from=builder /tmp/labnow-open-web/dist /opt/labnow-open/web
 COPY ./src/labnow-open-etc /opt/labnow-open
@@ -43,4 +42,6 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-utils.sh && install__clean
 
 WORKDIR $HOME_DIR
+ENV STATIC_DIR=/opt/labnow-open/web
+EXPOSE 80
 CMD ["/bin/bash", "start-supervisord.sh"]
