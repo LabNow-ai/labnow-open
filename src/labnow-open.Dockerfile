@@ -11,9 +11,12 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY ./src/labnow-open-web /tmp/labnow-open-web
-RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
+RUN set -eux \
+ && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
+ && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
  && cd /tmp/labnow-open-web \
- && export CI=true && npx pnpm i \
+ && export CI=true \
+ && pnpm install --no-strict-peer-dependencies \
  && URL_PREFIX='/home' npm run build \
  && ls -alh /tmp/labnow-open-web/dist
 
