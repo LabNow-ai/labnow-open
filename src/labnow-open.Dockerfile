@@ -13,7 +13,7 @@ ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 COPY ./src/labnow-open-web /tmp/labnow-open-web
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
- && source /opt/utils/script-setup.sh && setup_node_pnpm 11 \
+ && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
  && cd /tmp/labnow-open-web \
  && export CI=true \
  && pnpm config set ignore-scripts false \
