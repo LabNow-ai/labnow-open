@@ -14,7 +14,6 @@ COPY ./src/labnow-open-web /tmp/labnow-open-web
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
- && mv /tmp/labnow-open-web/.npmrc ~/.npmrc \
  && cd /tmp/labnow-open-web \
  && export CI=true \
  && pnpm install --no-strict-peer-dependencies \
