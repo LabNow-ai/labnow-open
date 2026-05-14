@@ -6,7 +6,6 @@ import {
   HeaderGlobalAction,
   HeaderGlobalBar,
   HeaderName,
-  InlineLoading,
   InlineNotification,
   Link,
   Modal,
@@ -271,7 +270,7 @@ export default function App() {
               alt=""
               aria-hidden="true"
             />
-            Console (Open Source Version)
+            Console
           </HeaderName>
           <HeaderGlobalBar>
             <Toggletip>
@@ -314,7 +313,7 @@ export default function App() {
           <div className="section">
             <div className="section-top">
               <h2 className="section-title">
-                LabNow Programs (Open Source Version)
+                LabNow Programs
               </h2>
               <div className="section-top-actions">
                 <Button

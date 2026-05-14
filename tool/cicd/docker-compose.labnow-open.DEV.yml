@@ -18,5 +18,6 @@ services:
       - ../../src:/root/src:rw
       - ../../tool:/root/tool:rw
       - "$HOME/.claude:/root/.claude:rw"
+      - /data/.pnpm-store:/root/.local/share/pnpm:rw
     working_dir: /root/src
     command: "tail -f /dev/null"

@@ -11,7 +11,7 @@
     # Add a global header to all responses
     header {
       -Server
-      Location-Base {$URL_PREFIX}
+      Location-Base {$URL_PREFIX:}
     }
 
     # Redirect the root path to the user home page
@@ -21,41 +21,43 @@
     # Handle user home paths
     @path_user_home path_regexp ^{$URL_PREFIX}home/.*$
     handle @path_user_home {
-        uri strip_prefix {$URL_PREFIX}home
+        uri strip_prefix {$URL_PREFIX:}home
         reverse_proxy localhost:9001
+        # root * /opt/labnow-open/web
+        # file_server
     }
-    @path_user_home_no_slash path_regexp ^{$URL_PREFIX}home$
+    @path_user_home_no_slash path_regexp ^{$URL_PREFIX:}home$
     redir @path_user_home_no_slash {path}/ 308
 
 
-    @path_user_vscode path_regexp ^{$URL_PREFIX}vscode/.*$
+    @path_user_vscode path_regexp ^{$URL_PREFIX:}vscode/.*$
     handle @path_user_vscode {  # Proxy requests to vscode, strip prefix
-        uri strip_prefix {$URL_PREFIX}vscode
+        uri strip_prefix {$URL_PREFIX:}vscode
         reverse_proxy localhost:9999
     }
-    @path_user_vscode_no_slash path_regexp ^{$URL_PREFIX}vscode$
+    @path_user_vscode_no_slash path_regexp ^{$URL_PREFIX:}vscode$
     redir @path_user_vscode_no_slash {path}/ 308  # Redirect paths ending in "vscode" to "vscode/"
 
 
-    @path_user_rserver path_regexp ^{$URL_PREFIX}rserver/.*$
+    @path_user_rserver path_regexp ^{$URL_PREFIX:}rserver/.*$
     handle @path_user_rserver {  # Proxy requests to rserver, strip prefix
-        uri strip_prefix {$URL_PREFIX}rserver
+        uri strip_prefix {$URL_PREFIX:}rserver
         reverse_proxy localhost:8787 {
             header_up   -X-Forwarded-Port
         }
     }
-    @path_user_rserver_no_slash path_regexp ^{$URL_PREFIX}rserver$
+    @path_user_rserver_no_slash path_regexp ^{$URL_PREFIX:}rserver$
     redir @path_user_rserver_no_slash {path}/ 308  # Redirect paths ending in "rserver" to "rserver/"
 
 
-    @path_user_rshiny path_regexp ^{$URL_PREFIX}rshiny/.*$
+    @path_user_rshiny path_regexp ^{$URL_PREFIX:}rshiny/.*$
     handle @path_user_rshiny {  # Proxy requests to rshiny, strip prefix
-        uri strip_prefix {$URL_PREFIX}rshiny
+        uri strip_prefix {$URL_PREFIX:}rshiny
         reverse_proxy localhost:3838 {
             header_up   -X-Forwarded-Port
         }
     }
-    @path_user_rshiny_no_slash path_regexp ^{$URL_PREFIX}rshiny$
+    @path_user_rshiny_no_slash path_regexp ^{$URL_PREFIX:}rshiny$
     redir @path_user_rshiny_no_slash {path}/ 308  # Redirect paths ending in "rshiny" to "rshiny/"
 
 

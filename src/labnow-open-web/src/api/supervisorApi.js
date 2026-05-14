@@ -32,6 +32,14 @@ export async function resolveApiBase() {
     return "/api/home";
   }
 
+  const runtimeBase =
+    (typeof window !== "undefined" && window.__LABNOW_URL_PREFIX__) ||
+    import.meta.env.BASE_URL;
+  if (runtimeBase && typeof window !== "undefined") {
+    const pathname = new URL(runtimeBase, window.location.href).pathname;
+    return pathname === "/" ? "/home" : pathname.replace(/\/$/, "");
+  }
+
   try {
     const resp = await fetch(window.location.href, { method: "HEAD" });
     const base = resp.headers.get("location-base");
