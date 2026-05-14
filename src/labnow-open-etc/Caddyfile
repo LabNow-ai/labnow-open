@@ -19,11 +19,12 @@
     redir @root {$URL_PREFIX:}home 307
 
     # Handle user home paths
-    @path_user_home path_regexp ^{$URL_PREFIX:}home/.*$
+    @path_user_home path_regexp ^{$URL_PREFIX}home/.*$
     handle @path_user_home {
         uri strip_prefix {$URL_PREFIX:}home
-        root * /opt/labnow-open/web
-        file_server
+        reverse_proxy localhost:9001
+        # root * /opt/labnow-open/web
+        # file_server
     }
     @path_user_home_no_slash path_regexp ^{$URL_PREFIX:}home$
     redir @path_user_home_no_slash {path}/ 308
