@@ -2,20 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createSupervisorApi,
   isRunningState,
-  resolveApiBase,
 } from "../api/supervisorApi";
+import { getRuntimeApiBase } from "../utils/runtimeBase";
 
 export function useSupervisorController() {
   const [loading, setLoading] = useState(false);
   const [programs, setPrograms] = useState([]);
-  const [apiBase, setApiBase] = useState(
-    import.meta.env.DEV ? "/api/home" : "/home"
+  const [apiBase] = useState(() =>
+    import.meta.env.DEV ? "/api/home" : getRuntimeApiBase()
   );
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-
-  useEffect(() => {
-    resolveApiBase().then(setApiBase);
-  }, []);
 
   const api = useMemo(() => createSupervisorApi(apiBase), [apiBase]);
 

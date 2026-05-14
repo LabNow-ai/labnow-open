@@ -52,6 +52,8 @@ echo "Action:          $ACTION"
 echo "Compose:         $COMPOSE"
 echo "----------------------------------------"
 
+mkdir -pv "$SCRIPT_DIR/../credentials" >/dev/null
+touch "$SCRIPT_DIR/../credentials/DEV-labnow-open.env" >/dev/null
 
 case "$ACTION" in
   up)
