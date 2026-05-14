@@ -1,3 +1,5 @@
+import { getRuntimeApiBase } from "../utils/runtimeBase";
+
 function buildJsonHeaders(extraHeaders) {
   return {
     "Content-Type": "application/json",
@@ -32,25 +34,7 @@ export async function resolveApiBase() {
     return "/api/home";
   }
 
-  const runtimeBase =
-    (typeof window !== "undefined" && window.__LABNOW_URL_PREFIX__) ||
-    import.meta.env.BASE_URL;
-  if (runtimeBase && typeof window !== "undefined") {
-    const pathname = new URL(runtimeBase, window.location.href).pathname;
-    return pathname === "/" ? "/home" : pathname.replace(/\/$/, "");
-  }
-
-  try {
-    const resp = await fetch(window.location.href, { method: "HEAD" });
-    const base = resp.headers.get("location-base");
-    if (base) {
-      return `${base}home`;
-    }
-  } catch (error) {
-    console.error("Failed to resolve location-base header", error);
-  }
-
-  return "/home";
+  return typeof window !== "undefined" ? getRuntimeApiBase() : "/home";
 }
 
 export function createSupervisorApi(apiBase) {

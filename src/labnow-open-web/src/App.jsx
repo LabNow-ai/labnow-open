@@ -30,6 +30,7 @@ import {
   StopFilledAlt,
 } from "@carbon/icons-react";
 import { useSupervisorController } from "./hooks/useSupervisorController";
+import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
 
 const PROGRAM_DEFINITIONS = {
   caddy: { displayName: "Caddy Server", hidden: true },
@@ -62,29 +63,6 @@ const PROGRAM_DEFINITIONS = {
       "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
   },
 };
-
-function normalizeBaseUrl(baseUrl) {
-  if (!baseUrl) {
-    return "/";
-  }
-  return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-}
-
-function buildPrefixedPath(path) {
-  if (!path) {
-    return "";
-  }
-  if (/^(https?:)?\/\//.test(path)) {
-    return path;
-  }
-
-  const runtimeBase =
-    (typeof window !== "undefined" && window.__LABNOW_URL_PREFIX__) ||
-    import.meta.env.BASE_URL;
-  const normalizedBase = normalizeBaseUrl(runtimeBase);
-  const normalizedPath = String(path).replace(/^\/+/, "");
-  return `${normalizedBase}${normalizedPath}`;
-}
 
 function NotificationBar({ notice, onClose }) {
   if (!notice) {
@@ -266,7 +244,7 @@ export default function App() {
           <HeaderName href="#" prefix="">
             <img
               className="header-brand-logo"
-              src={buildPrefixedPath("favicon.svg")}
+              src={buildHomePath("favicon.svg")}
               alt=""
               aria-hidden="true"
             />
@@ -348,7 +326,7 @@ export default function App() {
                 const running = isRunningState(program.statename);
                 const programMeta = programMetaByName[program.name];
                 const programLabel = programMeta?.displayName || program.name;
-                const programLink = programMeta?.link;
+                const programLink = buildWorkspacePath(programMeta?.link);
                 const programLogo = programMeta?.logo || "";
                 const programDescription = programMeta?.description || "";
                 const programLinkEnabled =
@@ -387,7 +365,7 @@ export default function App() {
                       {programLogo ? (
                         <img
                           className="program-logo program-logo-card"
-                          src={buildPrefixedPath(programLogo)}
+                          src={buildHomePath(programLogo)}
                           alt=""
                           aria-hidden="true"
                         />
