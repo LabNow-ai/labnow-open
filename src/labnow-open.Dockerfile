@@ -18,7 +18,7 @@ RUN set -eux \
  && cd /tmp/labnow-open-web \
  && export CI=true \
  && pnpm install --no-strict-peer-dependencies \
- && URL_PREFIX='/home' npm run build \
+ && pnpm run build \
  && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \
  && ls -alh /opt/labnow-open/web /opt/labnow-open/etc
 
