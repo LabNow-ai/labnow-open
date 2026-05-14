@@ -10,6 +10,7 @@ services:
     environment:
       - PROFILE_LOCALIZE=${PROFILE_LOCALIZE:-aliyun-pub}
       - ENV_PROFILE=${ENV_PROFILE:-DEV}
+      - STATIC_DIR=/opt/labnow-open/web
     env_file: ["../credentials/${ENV_PROFILE:-DEV}-labnow-open.env"]
     user: "0:0"
     ports: ["${PORT_APP:-20000}:80", "${PORT_WEB:-30000}:3000"]
