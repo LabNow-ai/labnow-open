@@ -11,6 +11,7 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY ./src/labnow-open-web /tmp/labnow-open-web
+COPY ./src/labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
@@ -18,7 +19,8 @@ RUN set -eux \
  && export CI=true \
  && pnpm install --no-strict-peer-dependencies \
  && URL_PREFIX='/home' npm run build \
- && ls -alh /tmp/labnow-open-web/dist
+ && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \
+ && ls -alh /opt/labnow-open/web /opt/labnow-open/etc
 
 
 FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS runtime
@@ -26,13 +28,12 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
-COPY --from=builder /tmp/labnow-open-web/dist /opt/labnow-open/web
-COPY ./src/labnow-open-etc /opt/labnow-open
+COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  # handle control scripts and extensions
- && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/supervisord.conf   /etc/supervisord/ \
- && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/Caddyfile          /etc/caddy/ \
+ && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
+ && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddyfile          /etc/caddy/ \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
