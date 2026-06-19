@@ -33,6 +33,7 @@ env:
 jobs:
   semgrep:
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     container:
       image: semgrep/semgrep:latest
     continue-on-error: true
@@ -52,6 +53,7 @@ jobs:
   job-developer:
     name: "labnow-open-dev"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -63,6 +65,7 @@ jobs:
   job-data-science:
     name: "labnow-open-data-science"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -74,6 +77,7 @@ jobs:
   job-openclaw:
     name: "labnow-open-openclaw"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - run: |
