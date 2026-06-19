@@ -12,6 +12,7 @@ Please generously STAR★ our project or donate to us!
 Discussion and contributions are welcome:
 [![Join Discord Chat](https://img.shields.io/badge/Discuss_on-Discord-green)](https://discord.gg/kHUzgQxgbJ)
 [![Open an Issue on GitHub](https://img.shields.io/github/issues/LabNow-ai/labnow-open)](https://github.com/LabNow-ai/labnow-open/issues)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LabNow-ai/labnow-open)
 
 ---
 

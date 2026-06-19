@@ -33,6 +33,7 @@ env:
 jobs:
   semgrep:
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     container:
       image: semgrep/semgrep:latest
     continue-on-error: true
@@ -52,6 +53,7 @@ jobs:
   job-developer:
     name: "labnow-open-dev"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -63,6 +65,7 @@ jobs:
   job-data-science:
     name: "labnow-open-data-science"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -71,10 +74,22 @@ jobs:
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
           push_image  labnow-open-data-science
 
+  job-openclaw:
+    name: "labnow-open-openclaw"
+    runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
+    steps:
+      - uses: actions/checkout@v6
+      - run: |
+          source ./tool/tool.sh
+          build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
+          push_image  labnow-open-openclaw
+
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   sync_images:
-    needs: ["job-developer", "job-data-science"]
+    needs: ["job-developer", "job-data-science", "job-openclaw"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
