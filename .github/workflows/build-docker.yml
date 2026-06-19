@@ -91,6 +91,7 @@ jobs:
   sync_images:
     needs: ["job-developer", "job-data-science", "job-openclaw"]
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v6
       - env:
