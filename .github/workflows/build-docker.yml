@@ -39,7 +39,7 @@ jobs:
     continue-on-error: true
     if: (github.actor != 'dependabot[bot]')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: |
           semgrep ci --verbose \
             --config p/ci \
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - env:
           AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
           DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
