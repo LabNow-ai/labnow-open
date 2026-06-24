@@ -33,7 +33,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  # handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
- && (type openclaw    && type caddy && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh && chmod +x /usr/local/bin/start-caddy.sh) \
+ && (type openclaw    && type caddy && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh && chmod +x /usr/local/bin/start-caddy.sh || true) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
  && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddyfile          /etc/caddy/ \
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
