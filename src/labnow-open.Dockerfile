@@ -27,6 +27,7 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
+COPY ./src/labnow-open-etc/healthcheck-server.py /usr/local/bin/healthcheck-server.py
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  # handle control scripts and extensions
@@ -40,6 +41,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
+ && (type openclaw     && printf '[program:healthcheck]\ncommand=/usr/local/bin/healthcheck-server.py\nautorestart=true\n' >> /etc/supervisord/supervisord.conf) \
  && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\n"       >> /etc/supervisord/supervisord.conf || true) \
  # create start-supervisord.sh for JupyterHub spawner compatibility
  && printf '#!/bin/bash\n[ $BASH ] && [ -f /etc/profile ] && [ -z $ENTER_PROFILE ] && . /etc/profile\nDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh \
