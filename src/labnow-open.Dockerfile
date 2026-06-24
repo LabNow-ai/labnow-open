@@ -41,6 +41,9 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
  && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\n"       >> /etc/supervisord/supervisord.conf || true) \
+ # create start-supervisord.sh for JupyterHub spawner compatibility
+ && printf '#!/bin/bash\n[ $BASH ] && [ -f /etc/profile ] && [ -z $ENTER_PROFILE ] && . /etc/profile\nDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh \
+ && chmod +x /usr/local/bin/start-supervisord.sh \
  # cleanup of any temporary or cache files to keep the image size down
  && rm -rf /opt/conda/share/jupyter/lab/staging \
  && source /opt/utils/script-utils.sh && install__clean
