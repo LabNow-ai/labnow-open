@@ -61,13 +61,11 @@
     redir @path_user_rshiny_no_slash {path}/ 308  # Redirect paths ending in "rshiny" to "rshiny/"
 
 
-    @path_user_openclaw path_regexp ^{$URL_PREFIX:}openclaw/.*$
+    @path_user_openclaw path_regexp ^{$URL_PREFIX:}openclaw(/.*)?$
     handle @path_user_openclaw {  # Proxy requests to openclaw, strip prefix
         uri strip_prefix {$URL_PREFIX:}openclaw
         reverse_proxy localhost:18789
     }
-    @path_user_openclaw_no_slash path_regexp ^{$URL_PREFIX:}openclaw$
-    redir @path_user_openclaw_no_slash {path}/ 308  # Redirect paths ending in "openclaw" to "openclaw/"
 
 
     handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
