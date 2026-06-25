@@ -34,6 +34,7 @@ import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
 
 const PROGRAM_DEFINITIONS = {
   caddy: { displayName: "Caddy Server", hidden: true },
+  healthcheck: { displayName: "Health Check", hidden: true },
   jupyter: {
     displayName: "JupyterLab",
     link: "/lab",
@@ -61,6 +62,13 @@ const PROGRAM_DEFINITIONS = {
     logo: "logo-rshiny.svg",
     description:
       "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
+  },
+  openclaw: {
+    displayName: "OpenClaw",
+    link: "/openclaw",
+    logo: "logo-openclaw.svg",
+    description:
+      "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language.",
   },
 };
 
