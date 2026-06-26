@@ -65,7 +65,7 @@ const PROGRAM_DEFINITIONS = {
   },
   openclaw: {
     displayName: "OpenClaw",
-    link: "/openclaw",
+    link: "/openclaw/",
     logo: "logo-openclaw.svg",
     description:
       "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language.",
