@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple HTTP health check server for JupyterHub spawner compatibility."""
+"""Simple HTTP health check server for spawner compatibility."""
 import http.server
 import json
 
