@@ -21,18 +21,8 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: "pip"
-    directory: "/src"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-    groups:
-      all-pip:
-        patterns:
-          - "*"
-
   - package-ecosystem: "npm"
-    directory: "/admin"
+    directory: "/src/labnow-open-web"
     schedule:
       interval: "weekly"
       day: "sunday"
