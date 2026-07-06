@@ -1,6 +1,6 @@
 # Use the existing image as the base
 ARG BASE_NAMESPACE="quay.io"
-ARG BASE_IMG="labnow/developer:latest"
+ARG BASE_IMG="developer:latest"
 
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
