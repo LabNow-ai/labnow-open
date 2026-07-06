@@ -27,15 +27,19 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
-COPY ./src/labnow-open-etc/healthcheck-server.py /usr/local/bin/healthcheck-server.py
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
- # handle control scripts and extensions
+ ## handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
- && (type openclaw    && type caddy && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh && chmod +x /usr/local/bin/start-caddy.sh || true) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
  && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddyfile          /etc/caddy/ \
+ ## create start-supervisord.sh and start-caddy.sh scripts if not existing, and make them executable
+ && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
+ && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
+ && chmod +x /usr/local/bin/start-caddy.sh \
+ && chmod +x /usr/local/bin/start-supervisord.sh \
+ ## components that are optional, only add them to supervisord if they exist
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
  && (type jupyter      && printf "[program:jupyter]\ncommand=/usr/local/bin/start-jupyterlab.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
@@ -43,11 +47,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\n"       >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
- # create start-supervisord.sh for JupyterHub spawner compatibility
- && printf '#!/bin/bash\n[ $BASH ] && [ -f /etc/profile ] && [ -z $ENTER_PROFILE ] && . /etc/profile\nDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh \
- && chmod +x /usr/local/bin/start-supervisord.sh \
  # cleanup of any temporary or cache files to keep the image size down
- && rm -rf /opt/conda/share/jupyter/lab/staging \
  && source /opt/utils/script-utils.sh && install__clean
 
 WORKDIR $HOME_DIR

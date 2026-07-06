@@ -34,7 +34,6 @@ import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
 
 const PROGRAM_DEFINITIONS = {
   caddy: { displayName: "Caddy Server", hidden: true },
-  healthcheck: { displayName: "Health Check", hidden: true },
   jupyter: {
     displayName: "JupyterLab",
     link: "/lab",
