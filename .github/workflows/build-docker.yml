@@ -60,7 +60,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=developer:latest"
           push_image  labnow-open-dev
 
   job-data-science:
@@ -72,7 +72,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=data-science-dev:latest"
           push_image  labnow-open-data-science
 
   job-openclaw:
@@ -84,7 +84,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=openclaw:latest"
           push_image  labnow-open-openclaw
 
 
