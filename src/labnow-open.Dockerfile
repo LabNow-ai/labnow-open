@@ -10,8 +10,8 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
-COPY ./src/labnow-open-web /tmp/labnow-open-web
-COPY ./src/labnow-open-etc /opt/labnow-open/etc
+COPY ./labnow-open-web /tmp/labnow-open-web
+COPY ./labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
