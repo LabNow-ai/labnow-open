@@ -69,6 +69,7 @@
 
 
     handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
-        reverse_proxy localhost:8888
+        reverse_proxy localhost:8888 localhost:9001
+        lb_policy first
     }
 }
