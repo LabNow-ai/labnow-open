@@ -67,11 +67,15 @@
         reverse_proxy localhost:18789
     }
 
+    # respond 200 OK to /api
+    @path_user_api_healthcheck {
+        path {$URL_PREFIX:}/api
+    }
+    handle @path_user_api_healthcheck {
+        respond "OK" 200
+    }
 
-    handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
-        reverse_proxy {
-            to localhost:8888 localhost:9001
-            lb_policy first
-        }
+    handle /* {  # Proxy all other requests to a default backend server on port 8888
+        reverse_proxy localhost:8888
     }
 }

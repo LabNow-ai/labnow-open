@@ -45,8 +45,9 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
- && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\n"       >> /etc/supervisord/supervisord.conf || true) \
- && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
+ ## optional agent components: openclaw and hermes
+ && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\nautostart=true\n"   >> /etc/supervisord/supervisord.conf || true) \
+ && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\nautostart=true\n"       >> /etc/supervisord/supervisord.conf || true) \
  # cleanup of any temporary or cache files to keep the image size down
  && source /opt/utils/script-utils.sh && install__clean
 
