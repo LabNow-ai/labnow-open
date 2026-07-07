@@ -62,6 +62,13 @@ const PROGRAM_DEFINITIONS = {
     description:
       "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
   },
+  openclaw: {
+    displayName: "OpenClaw",
+    link: "/openclaw/",
+    logo: "logo-openclaw.svg",
+    description:
+      "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language.",
+  },
 };
 
 function NotificationBar({ notice, onClose }) {

@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  TZ: Asia/Shanghai
   BUILDKIT_PROGRESS: "plain"  # Full logs for CI build.
   REGISTRY_SRC: ${{ vars.REGISTRY_SRC || 'docker.io' }} # For BASE_NAMESPACE of images: where to pull base images from, docker.io or other source registry URL.
   REGISTRY_DST: ${{ vars.REGISTRY_DST || 'quay.io' }} # For tags of built images: where to push images to, docker.io or other destination registry URL.
@@ -31,7 +32,7 @@ env:
   COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
 
 jobs:
-  semgrep:
+  job-semgrep:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     container:
@@ -59,7 +60,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=developer:latest"
           push_image  labnow-open-dev
 
   job-data-science:
@@ -71,7 +72,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=data-science-dev:latest"
           push_image  labnow-open-data-science
 
   job-openclaw:
@@ -83,12 +84,12 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=openclaw:latest"
           push_image  labnow-open-openclaw
 
 
   ## Sync all images in this build (listed by "names") to mirror registry.
-  sync_images:
+  job-sync-images:
     needs: ["job-developer", "job-data-science", "job-openclaw"]
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
