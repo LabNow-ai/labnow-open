@@ -32,7 +32,7 @@ env:
   COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
 
 jobs:
-  semgrep:
+  job-semgrep:
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     container:
@@ -89,7 +89,7 @@ jobs:
 
 
   ## Sync all images in this build (listed by "names") to mirror registry.
-  sync_images:
+  job-sync-images:
     needs: ["job-developer", "job-data-science", "job-openclaw"]
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
