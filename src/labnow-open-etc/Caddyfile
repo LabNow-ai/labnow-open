@@ -67,9 +67,9 @@
         reverse_proxy localhost:18789
     }
 
-    # respond 200 OK to /api
+    # respond 200 OK to /api for healthcheck
     @path_user_api_healthcheck {
-        path {$URL_PREFIX:}/api
+        path {$URL_PREFIX:}api
     }
     handle @path_user_api_healthcheck {
         respond "OK" 200
