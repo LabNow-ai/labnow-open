@@ -94,8 +94,9 @@
     }
 
     # Health check
-    @path_user_api_healthcheck path {$URL_PREFIX:}api
-    respond @path_user_api_healthcheck "OK" 200
+    handle_path {$URL_PREFIX:}api {
+        respond "OK" 200
+    }
 
     # Default backend
     handle {
