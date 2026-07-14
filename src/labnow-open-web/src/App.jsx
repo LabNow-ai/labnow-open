@@ -62,6 +62,17 @@ const PROGRAM_DEFINITIONS = {
     description:
       "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
   },
+  "hermes-gateway": {
+    displayName: "Hermes Gateway",
+    hidden: true,
+  },
+  "hermes-dashboard": {
+    displayName: "Hermes",
+    link: "/hermes/",
+    logo: "logo-hermes.svg",
+    description:
+      "An agent workspace for managing sessions, skills, configurations, and plans.",
+  },
 };
 
 function NotificationBar({ notice, onClose }) {

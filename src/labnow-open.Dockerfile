@@ -34,13 +34,16 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
  && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddyfile          /etc/caddy/ \
+ && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
+ && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
+ && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
  && (type jupyter      && printf "[program:jupyter]\ncommand=/usr/local/bin/start-jupyterlab.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
- && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\n"       >> /etc/supervisord/supervisord.conf || true) \
+ && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
  # cleanup of any temporary or cache files to keep the image size down
  && rm -rf /opt/conda/share/jupyter/lab/staging \
  && source /opt/utils/script-utils.sh && install__clean

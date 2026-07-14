@@ -86,10 +86,25 @@ jobs:
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
           push_image  labnow-open-openclaw
 
+  job-hermes:
+    name: "labnow-open-hermes"
+    runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
+    env:
+      REGISTRY_SRC: quay.io
+      REGISTRY_DST: quay.io
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          source ./tool/tool.sh
+          build_image labnow-open-hermes latest ./src/labnow-open.Dockerfile \
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/hermes:latest"
+          push_image  labnow-open-hermes
+
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   sync_images:
-    needs: ["job-developer", "job-data-science", "job-openclaw"]
+    needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
     runs-on: ubuntu-latest
     permissions: {"contents": "read", "pull-requests": "write"}
     steps:

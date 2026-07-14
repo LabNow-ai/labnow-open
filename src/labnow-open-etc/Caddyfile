@@ -61,7 +61,19 @@
     redir @path_user_rshiny_no_slash {path}/ 308  # Redirect paths ending in "rshiny" to "rshiny/"
 
 
-    handle /* {  # Proxy all other requests to a default backend server on port 8888 for jupyter
+    @path_user_hermes_no_slash path_regexp ^{$URL_PREFIX:}hermes$
+    redir @path_user_hermes_no_slash {path}/ 308
+
+    @path_user_hermes path_regexp ^{$URL_PREFIX:}hermes/.*$
+    handle @path_user_hermes {
+        uri strip_prefix {$URL_PREFIX:}hermes
+        reverse_proxy 127.0.0.1:9119 {
+            header_up X-Forwarded-Prefix {$URL_PREFIX:}hermes
+        }
+    }
+
+
+    handle {  # Proxy all other requests to a default backend server on port 8888 for jupyter
         reverse_proxy localhost:8888
     }
 }
