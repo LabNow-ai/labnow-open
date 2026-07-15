@@ -72,6 +72,7 @@
         }
     }
 
+    import /etc/caddy/enabled-routes/*.caddy
 
     handle {  # Proxy all other requests to a default backend server on port 8888 for jupyter
         reverse_proxy localhost:8888
