@@ -130,3 +130,8 @@ dmypy.json
 
 # Yarn cache
 .yarn/
+
+# Local project documentation
+development-docs/
+architecture-overview/
+docs/architecture-analysis.md
