@@ -15,7 +15,7 @@
     }
 
     # Redirect the root path to the user home page
-    @root path_regexp root ^{$URL_PREFIX:}/?$
+    @root path_regexp root ^{$URL_PREFIX:/}?$
     redir @root {$URL_PREFIX:}home 307
 
     # Handle user home paths
