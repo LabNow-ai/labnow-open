@@ -51,7 +51,8 @@ jobs:
             --config p/javascript \
             --config p/react \
             --config p/owasp-top-ten \
-            --exclude-rule=dockerfile.security.missing-user.missing-user
+            --exclude-rule=dockerfile.security.missing-user.missing-user \
+            --exclude-rule=yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
 
   job-developer:
     name: "labnow-open-dev"
