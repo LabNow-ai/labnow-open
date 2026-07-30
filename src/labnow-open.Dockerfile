@@ -1,11 +1,12 @@
 # Use the existing image as the base
 ARG BASE_NAMESPACE="quay.io"
+ARG BASE_IMG_BUILD="node:latest"
 ARG BASE_IMG="developer:latest"
 
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
-FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS builder
+FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG_BUILD} AS builder
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
