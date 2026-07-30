@@ -126,8 +126,7 @@ export default function App() {
     [programs],
   );
   const visiblePrograms = useMemo(
-    () =>
-      programs.filter((program) => !programMetaByName[program.name]?.hidden),
+    () => programs.filter((program) => !programMetaByName[program.name]?.hidden),
     [programMetaByName, programs],
   );
 
@@ -136,14 +135,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!notice) {
-      return undefined;
-    }
-
-    const timer = setTimeout(() => {
-      setNotice(null);
-    }, 4000);
-
+    if (!notice) { return undefined; }
+    const timer = setTimeout(() => { setNotice(null); }, 4000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -172,22 +165,12 @@ export default function App() {
     pushNotice("success", "Program restarted", name);
   };
 
-  const openStopConfirm = (name) => {
-    setConfirm({ open: true, type: "stop", name });
-  };
-
-  const openReloadConfirm = () => {
-    setConfirm({ open: true, type: "reload", name: "" });
-  };
-
-  const openShutdownConfirm = () => {
-    setConfirm({ open: true, type: "shutdown", name: "" });
-  };
+  const openStopConfirm = (name) => { setConfirm({ open: true, type: "stop", name }); };
+  const openReloadConfirm = () => { setConfirm({ open: true, type: "reload", name: "" }); };
+  // const openShutdownConfirm = () => { setConfirm({ open: true, type: "shutdown", name: "" }); };
 
   const closeConfirm = () => {
-    if (confirmBusy) {
-      return;
-    }
+    if (confirmBusy) { return; }
     setConfirm({ open: false, type: null, name: "" });
   };
 
@@ -259,10 +242,7 @@ export default function App() {
           </HeaderName>
           <HeaderGlobalBar>
             <Toggletip>
-              <ToggletipButton
-                className="header-toggletip-button"
-                label="Show API Base information"
-              >
+              <ToggletipButton className="header-toggletip-button" label="Show API Base information">
                 <Information size={20} />
               </ToggletipButton>
               <ToggletipContent>
@@ -279,14 +259,9 @@ export default function App() {
               {isDarkMode ? <Light size={20} /> : <Moon size={20} />}
             </HeaderGlobalAction>
             <HeaderGlobalAction
-              aria-label="Open documentation"
-              tooltipAlignment="end"
+              aria-label="Open documentation" tooltipAlignment="end"
               onClick={() =>
-                window.open(
-                  "https://doc.labnow.ai",
-                  "_blank",
-                  "noopener,noreferrer",
-                )
+                window.open("https://doc.labnow.ai", "_blank", "noopener,noreferrer")
               }
             >
               <DocumentExport size={20} />
@@ -336,10 +311,7 @@ export default function App() {
                 const programLink = buildWorkspacePath(programMeta?.link);
                 const programLogo = programMeta?.logo || "";
                 const programDescription = programMeta?.description || "";
-                const programLinkEnabled =
-                  String(program.statename || "")
-                    .trim()
-                    .toLowerCase() === "running";
+                const programLinkEnabled = String(program.statename || "").trim().toLowerCase() === "running";
                 const programTooltip = programLinkEnabled
                   ? "Open the program in new browser tab"
                   : "Please start the program first to use it!";
@@ -357,9 +329,7 @@ export default function App() {
                     </Link>
                   ) : (
                     <span
-                      className={
-                        programLink ? "program-card-title-disabled" : ""
-                      }
+                      className={ programLink ? "program-card-title-disabled" : "" }
                       title={programTooltip}
                     >
                       {programLabel}

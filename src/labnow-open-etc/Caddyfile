@@ -1,10 +1,6 @@
 :80 {
     log {
-        output file /dev/null {
-            roll_size 10mb
-            roll_keep 5
-            roll_keep_for 30d
-        }
+        output file /dev/null
         format json
     }
 
