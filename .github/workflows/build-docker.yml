@@ -89,10 +89,6 @@ jobs:
   job-hermes:
     name: "labnow-open-hermes"
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
-    env:
-      REGISTRY_SRC: quay.io
-      REGISTRY_DST: quay.io
     steps:
       - uses: actions/checkout@v7
       - run: |
@@ -103,7 +99,7 @@ jobs:
 
 
   ## Sync all images in this build (listed by "names") to mirror registry.
-  sync_images:
+  job-sync-images:
     needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
     runs-on: ubuntu-latest
     steps:
