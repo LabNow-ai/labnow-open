@@ -14,11 +14,14 @@ services:
     env_file: ["../credentials/${ENV_PROFILE:-DEV}-labnow-open.env"]
     user: "0:0"
     ports: ["${PORT_APP:-20000}:80", "${PORT_WEB:-30000}:3000"]
+    working_dir: /workspace
     volumes:
-      - ../../doc:/root/doc:rw
-      - ../../src:/root/src:rw
-      - ../../tool:/root/tool:rw
+      - ../../:/workspace:rw
+      - ${PNPM_STORE_PATH:-$HOME/.pnpm-store}:/workspace/.pnpm-store:rw
+      - ${PNPM_STORE_PATH:-$HOME/.pnpm-store}:/root/.pnpm-store:rw
+      # AI4Coding tools:
       - "$HOME/.claude:/root/.claude:rw"
-      - /data/.pnpm-store:/root/.local/share/pnpm:rw
-    working_dir: /root/src
+      - "$HOME/.codex:/root/.codex:rw"
+      - "$HOME/.copilot:/root/.copilot:rw"
+      - "$HOME/.gemini:/root/.gemini:rw"
     command: "tail -f /dev/null"

@@ -1,11 +1,12 @@
 # Use the existing image as the base
 ARG BASE_NAMESPACE="quay.io"
+ARG BASE_IMG_BUILD="node:latest"
 ARG BASE_IMG="developer:latest"
 
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
-FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS builder
+FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG_BUILD} AS builder
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
@@ -16,7 +17,7 @@ RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
  && cd /tmp/labnow-open-web \
- && export CI=true && pnpm install --no-strict-peer-dependencies && pnpm run build \
+ && export CI=true && export CARBON_TELEMETRY_DISABLED=1 && pnpm install --no-strict-peer-dependencies --ignore-scripts && pnpm run build \
  && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \
  && ls -alh /opt/labnow-open/web /opt/labnow-open/etc
 
@@ -32,22 +33,18 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  ## handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
- && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
- && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddyfile          /etc/caddy/ \
- ## create start-supervisord.sh and start-caddy.sh scripts if not existing, and make them executable
+ && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf  /etc/supervisord/ \
+ && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddy*            /etc/caddy/ \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
  && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
- && chmod +x /usr/local/bin/start-caddy.sh \
- && chmod +x /usr/local/bin/start-supervisord.sh \
- ## components that are optional, only add them to supervisord if they exist
+ && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
- && (type jupyter      && printf "[program:jupyter]\ncommand=/usr/local/bin/start-jupyterlab.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
- && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
- && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
- && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
- ## optional agent components: openclaw and hermes
- && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\nautostart=true\n"   >> /etc/supervisord/supervisord.conf || true) \
- && (type hermes       && printf "[program:hermes]\ncommand=/usr/local/bin/start-hermes.sh\nautostart=true\n"       >> /etc/supervisord/supervisord.conf || true) \
+ && (type jupyter      && printf "[program:jupyter]\ncommand=/usr/local/bin/start-jupyterlab.sh\n"  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/jupyter.caddy  ) \
+ && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/vscode.caddy   ) \
+ && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/rserver.caddy  ) \
+ && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/shiny.caddy    ) \
+ && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/openclaw.caddy ) \
+ && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
  # cleanup of any temporary or cache files to keep the image size down
  && source /opt/utils/script-utils.sh && install__clean
 

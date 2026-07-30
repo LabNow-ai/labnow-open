@@ -130,3 +130,6 @@ dmypy.json
 
 # Yarn cache
 .yarn/
+
+# Local project documentation
+doc/dev/

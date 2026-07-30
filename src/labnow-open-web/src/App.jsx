@@ -33,41 +33,46 @@ import { useSupervisorController } from "./hooks/useSupervisorController";
 import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
 
 const PROGRAM_DEFINITIONS = {
-  caddy: { displayName: "Caddy Server", hidden: true },
-  jupyter: {
+  "caddy": { displayName: "Caddy Server", hidden: true },
+  "jupyter": {
     displayName: "JupyterLab",
-    link: "/lab",
+    link: "/lab/",
     logo: "logo-jupyter.svg",
-    description:
-      "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments.",
+    description: "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments."
   },
-  vscode: {
+  "vscode": {
     displayName: "VS Code",
-    link: "/vscode",
+    link: "/vscode/",
     logo: "logo-vscode.svg",
-    description:
-      "A full-featured code editor in your browser. Edit files, run terminals, and manage projects.",
+    description: "A full-featured code editor in your browser. Edit files, run terminals, and manage projects."
   },
-  rserver: {
+  "rserver": {
     displayName: "R-Studio",
-    link: "/rserver",
+    link: "/rserver/",
     logo: "logo-rserver.svg",
-    description:
-      "RStudio Server for R development and analysis. Build scripts, run models, and visualize results.",
+    description: "RStudio Server for R development and analysis. Build scripts, run models, and visualize results."
   },
-  rshiny: {
+  "rshiny": {
     displayName: "R Shiny",
-    link: "/rshiny",
+    link: "/rshiny/",
     logo: "logo-rshiny.svg",
-    description:
-      "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
+    description: "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team."
   },
-  openclaw: {
+  "hermes-gateway": {
+    displayName: "Hermes Gateway",
+    hidden: true,
+  },
+  "hermes-dashboard": {
+    displayName: "Hermes",
+    link: "/hermes/",
+    logo: "logo-hermes.svg",
+    description: "An agent workspace for managing sessions, skills, configurations, and plans."
+  },
+  "openclaw": {
     displayName: "OpenClaw",
     link: "/openclaw/",
     logo: "logo-openclaw.svg",
-    description:
-      "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language.",
+    description: "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language."
   },
 };
 
@@ -466,7 +471,7 @@ export default function App() {
               title="labnow.ai"
             >
               <Home size={18} />
-              <span>LabNow.ai</span>
+              <span>LabNow®</span>
             </a>
 
             <a

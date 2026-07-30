@@ -1,0 +1,10 @@
+# Shiny Server
+@path_user_rshiny path {$URL_PREFIX:}rshiny/*
+handle @path_user_rshiny {
+    uri strip_prefix {$URL_PREFIX:}rshiny
+    reverse_proxy localhost:3838 {
+        header_up -X-Forwarded-Port
+    }
+}
+@path_user_rshiny_no_slash path {$URL_PREFIX:}rshiny
+redir @path_user_rshiny_no_slash {path}/ 308

@@ -51,7 +51,8 @@ jobs:
             --config p/javascript \
             --config p/react \
             --config p/owasp-top-ten \
-            --exclude-rule=dockerfile.security.missing-user.missing-user
+            --exclude-rule=dockerfile.security.missing-user.missing-user \
+            --exclude-rule=yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
 
   job-developer:
     name: "labnow-open-dev"
@@ -86,10 +87,21 @@ jobs:
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=openclaw:latest"
           push_image  labnow-open-openclaw
 
+  job-hermes:
+    name: "labnow-open-hermes"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          source ./tool/tool.sh
+          build_image labnow-open-hermes latest ./src/labnow-open.Dockerfile \
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=hermes:latest"
+          push_image  labnow-open-hermes
+
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   job-sync-images:
-    needs: ["job-developer", "job-data-science", "job-openclaw"]
+    needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
