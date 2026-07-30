@@ -1,6 +1,0 @@
-@path_user_hermes_readiness path {$URL_PREFIX:/}api
-
-handle @path_user_hermes_readiness {
-    rewrite * /api/status
-    reverse_proxy 127.0.0.1:9119
-}

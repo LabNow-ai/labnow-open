@@ -1,0 +1,10 @@
+# RStudio Server
+@path_user_rserver path {$URL_PREFIX:}rserver/*
+handle @path_user_rserver {
+    uri strip_prefix {$URL_PREFIX:}rserver
+    reverse_proxy localhost:8787 {
+        header_up -X-Forwarded-Port
+    }
+}
+@path_user_rserver_no_slash path {$URL_PREFIX:}rserver
+redir @path_user_rserver_no_slash {path}/ 308

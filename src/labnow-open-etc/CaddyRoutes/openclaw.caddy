@@ -1,0 +1,13 @@
+# OpenClaw
+# Redirect non-WebSocket requests to the canonical trailing-slash URL
+@path_user_openclaw_no_slash {
+    path {$URL_PREFIX:}openclaw
+    not header Connection *Upgrade*
+}
+redir @path_user_openclaw_no_slash {path}/ 308
+
+@path_user_openclaw path {$URL_PREFIX:}openclaw/*
+handle @path_user_openclaw {
+    uri strip_prefix {$URL_PREFIX:}openclaw
+    reverse_proxy localhost:18789
+}

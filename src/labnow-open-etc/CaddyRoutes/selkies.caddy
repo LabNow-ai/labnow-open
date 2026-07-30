@@ -1,0 +1,9 @@
+# Selkies
+@path_user_selkies_no_slash path {$URL_PREFIX:}selkies
+redir @path_user_selkies_no_slash {path}/ 308
+
+@path_user_selkies path {$URL_PREFIX:}selkies/*
+handle @path_user_selkies {
+    uri strip_prefix {$URL_PREFIX:}selkies
+    reverse_proxy localhost:8080
+}

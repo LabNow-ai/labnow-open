@@ -1,0 +1,8 @@
+# VS Code
+@path_user_vscode path {$URL_PREFIX:}vscode/*
+handle @path_user_vscode {
+    uri strip_prefix {$URL_PREFIX:}vscode
+    reverse_proxy localhost:9999
+}
+@path_user_vscode_no_slash path {$URL_PREFIX:}vscode
+redir @path_user_vscode_no_slash {path}/ 308
