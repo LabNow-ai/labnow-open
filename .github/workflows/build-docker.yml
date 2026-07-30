@@ -12,11 +12,15 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
+  TZ: Asia/Shanghai
   BUILDKIT_PROGRESS: "plain"  # Full logs for CI build.
   REGISTRY_SRC: ${{ vars.REGISTRY_SRC || 'docker.io' }} # For BASE_NAMESPACE of images: where to pull base images from, docker.io or other source registry URL.
   REGISTRY_DST: ${{ vars.REGISTRY_DST || 'quay.io' }} # For tags of built images: where to push images to, docker.io or other destination registry URL.
@@ -31,9 +35,8 @@ env:
   COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
 
 jobs:
-  semgrep:
+  job-semgrep:
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
     container:
       image: semgrep/semgrep:latest
     continue-on-error: true
@@ -53,37 +56,34 @@ jobs:
   job-developer:
     name: "labnow-open-dev"
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/developer:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=developer:latest"
           push_image  labnow-open-dev
 
   job-data-science:
     name: "labnow-open-data-science"
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/data-science-dev:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=data-science-dev:latest"
           push_image  labnow-open-data-science
 
   job-openclaw:
     name: "labnow-open-openclaw"
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=openclaw:latest"
           push_image  labnow-open-openclaw
 
   job-hermes:
@@ -106,7 +106,6 @@ jobs:
   sync_images:
     needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
     runs-on: ubuntu-latest
-    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - env:

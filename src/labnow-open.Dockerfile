@@ -1,6 +1,6 @@
 # Use the existing image as the base
 ARG BASE_NAMESPACE="quay.io"
-ARG BASE_IMG="labnow/developer:latest"
+ARG BASE_IMG="developer:latest"
 
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
@@ -10,8 +10,8 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
-COPY ./src/labnow-open-web /tmp/labnow-open-web
-COPY ./src/labnow-open-etc /opt/labnow-open/etc
+COPY ./labnow-open-web /tmp/labnow-open-web
+COPY ./labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
@@ -29,7 +29,7 @@ ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
- # handle control scripts and extensions
+ ## handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
@@ -46,7 +46,6 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type hermes       && ln -sf /opt/labnow-open/etc/routes/hermes-readiness.caddy /etc/caddy/enabled-routes/hermes-readiness.caddy || true) \
  # cleanup of any temporary or cache files to keep the image size down
- && rm -rf /opt/conda/share/jupyter/lab/staging \
  && source /opt/utils/script-utils.sh && install__clean
 
 WORKDIR $HOME_DIR

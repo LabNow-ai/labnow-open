@@ -72,14 +72,14 @@ case "$ACTION" in
     ;;
   enter)
     echo "↩️ Entering into development container:"
-    docker exec -it $CONTAINER_NAME bash
+    docker exec -it "$CONTAINER_NAME" bash
     ;;
   logs)
     echo "🕵 Attach to container for log inspection:"
     docker-compose -f "$COMPOSE" -p "$PROJECT_NAME" logs -f
     ;;
   *)
-    echo "Usage: $0 [up|down|restart|logs]"
+    echo "Usage: $0 [up|down|restart|enter|logs]"
     exit 1
     ;;
 esac

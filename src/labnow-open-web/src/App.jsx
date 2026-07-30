@@ -33,34 +33,30 @@ import { useSupervisorController } from "./hooks/useSupervisorController";
 import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
 
 const PROGRAM_DEFINITIONS = {
-  caddy: { displayName: "Caddy Server", hidden: true },
-  jupyter: {
+  "caddy": { displayName: "Caddy Server", hidden: true },
+  "jupyter": {
     displayName: "JupyterLab",
-    link: "/lab",
+    link: "/lab/",
     logo: "logo-jupyter.svg",
-    description:
-      "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments.",
+    description: "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments."
   },
-  vscode: {
+  "vscode": {
     displayName: "VS Code",
-    link: "/vscode",
+    link: "/vscode/",
     logo: "logo-vscode.svg",
-    description:
-      "A full-featured code editor in your browser. Edit files, run terminals, and manage projects.",
+    description: "A full-featured code editor in your browser. Edit files, run terminals, and manage projects."
   },
-  rserver: {
+  "rserver": {
     displayName: "R-Studio",
-    link: "/rserver",
+    link: "/rserver/",
     logo: "logo-rserver.svg",
-    description:
-      "RStudio Server for R development and analysis. Build scripts, run models, and visualize results.",
+    description: "RStudio Server for R development and analysis. Build scripts, run models, and visualize results."
   },
-  rshiny: {
+  "rshiny": {
     displayName: "R Shiny",
-    link: "/rshiny",
+    link: "/rshiny/",
     logo: "logo-rshiny.svg",
-    description:
-      "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
+    description: "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team."
   },
   "hermes-gateway": {
     displayName: "Hermes Gateway",
@@ -70,8 +66,13 @@ const PROGRAM_DEFINITIONS = {
     displayName: "Hermes",
     link: "/hermes/",
     logo: "logo-hermes.svg",
-    description:
-      "An agent workspace for managing sessions, skills, configurations, and plans.",
+    description: "An agent workspace for managing sessions, skills, configurations, and plans."
+  },
+  "openclaw": {
+    displayName: "OpenClaw",
+    link: "/openclaw/",
+    logo: "logo-openclaw.svg",
+    description: "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language."
   },
 };
 
@@ -130,8 +131,7 @@ export default function App() {
     [programs],
   );
   const visiblePrograms = useMemo(
-    () =>
-      programs.filter((program) => !programMetaByName[program.name]?.hidden),
+    () => programs.filter((program) => !programMetaByName[program.name]?.hidden),
     [programMetaByName, programs],
   );
 
@@ -140,14 +140,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!notice) {
-      return undefined;
-    }
-
-    const timer = setTimeout(() => {
-      setNotice(null);
-    }, 4000);
-
+    if (!notice) { return undefined; }
+    const timer = setTimeout(() => { setNotice(null); }, 4000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -176,22 +170,12 @@ export default function App() {
     pushNotice("success", "Program restarted", name);
   };
 
-  const openStopConfirm = (name) => {
-    setConfirm({ open: true, type: "stop", name });
-  };
-
-  const openReloadConfirm = () => {
-    setConfirm({ open: true, type: "reload", name: "" });
-  };
-
-  const openShutdownConfirm = () => {
-    setConfirm({ open: true, type: "shutdown", name: "" });
-  };
+  const openStopConfirm = (name) => { setConfirm({ open: true, type: "stop", name }); };
+  const openReloadConfirm = () => { setConfirm({ open: true, type: "reload", name: "" }); };
+  // const openShutdownConfirm = () => { setConfirm({ open: true, type: "shutdown", name: "" }); };
 
   const closeConfirm = () => {
-    if (confirmBusy) {
-      return;
-    }
+    if (confirmBusy) { return; }
     setConfirm({ open: false, type: null, name: "" });
   };
 
@@ -263,10 +247,7 @@ export default function App() {
           </HeaderName>
           <HeaderGlobalBar>
             <Toggletip>
-              <ToggletipButton
-                className="header-toggletip-button"
-                label="Show API Base information"
-              >
+              <ToggletipButton className="header-toggletip-button" label="Show API Base information">
                 <Information size={20} />
               </ToggletipButton>
               <ToggletipContent>
@@ -283,14 +264,9 @@ export default function App() {
               {isDarkMode ? <Light size={20} /> : <Moon size={20} />}
             </HeaderGlobalAction>
             <HeaderGlobalAction
-              aria-label="Open documentation"
-              tooltipAlignment="end"
+              aria-label="Open documentation" tooltipAlignment="end"
               onClick={() =>
-                window.open(
-                  "https://doc.labnow.ai",
-                  "_blank",
-                  "noopener,noreferrer",
-                )
+                window.open("https://doc.labnow.ai", "_blank", "noopener,noreferrer")
               }
             >
               <DocumentExport size={20} />
@@ -340,10 +316,7 @@ export default function App() {
                 const programLink = buildWorkspacePath(programMeta?.link);
                 const programLogo = programMeta?.logo || "";
                 const programDescription = programMeta?.description || "";
-                const programLinkEnabled =
-                  String(program.statename || "")
-                    .trim()
-                    .toLowerCase() === "running";
+                const programLinkEnabled = String(program.statename || "").trim().toLowerCase() === "running";
                 const programTooltip = programLinkEnabled
                   ? "Open the program in new browser tab"
                   : "Please start the program first to use it!";
@@ -361,9 +334,7 @@ export default function App() {
                     </Link>
                   ) : (
                     <span
-                      className={
-                        programLink ? "program-card-title-disabled" : ""
-                      }
+                      className={ programLink ? "program-card-title-disabled" : "" }
                       title={programTooltip}
                     >
                       {programLabel}
@@ -500,7 +471,7 @@ export default function App() {
               title="labnow.ai"
             >
               <Home size={18} />
-              <span>LabNow.ai</span>
+              <span>LabNow®</span>
             </a>
 
             <a
