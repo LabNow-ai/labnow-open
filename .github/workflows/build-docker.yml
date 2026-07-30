@@ -98,7 +98,7 @@ jobs:
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-hermes latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/hermes:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=hermes:latest"
           push_image  labnow-open-hermes
 
 
