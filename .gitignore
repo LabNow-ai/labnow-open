@@ -132,6 +132,4 @@ dmypy.json
 .yarn/
 
 # Local project documentation
-development-docs/
-architecture-overview/
-docs/architecture-analysis.md
+doc/dev/
