@@ -30,14 +30,17 @@ ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
+ ## install Caddy and link the configuration files
+ && (type caddy || (source /opt/utils/script-setup-net.sh && setup_caddy && echo "Caddy installed")) \
+ && mkdir -pv /etc/caddy && ln -sf /opt/labnow-open/etc/Caddy* /etc/caddy/ \
+ && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
  ## handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
- && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
- && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf  /etc/supervisord/ \
- && mkdir -pv /etc/caddy       && ln -sf /opt/labnow-open/etc/Caddy*            /etc/caddy/ \
+ && mkdir -pv /etc/supervisord \
+ && ([ ! -f /etc/supervisord/supervisord.conf ] && ln -sf /opt/labnow-open/etc/supervisord.conf /etc/supervisord/ || true ) \
+ && printf '[program:caddy]\ncommand=/usr/local/bin/start-caddy.sh\nautostart=true\n' > /etc/supervisord/supervisord.conf \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
- && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
- && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
+ ## handle supervisord start options
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
  && (type jupyter      && printf "[program:jupyter]\ncommand=/usr/local/bin/start-jupyterlab.sh\n"  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/jupyter.caddy  ) \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/vscode.caddy   ) \
@@ -45,7 +48,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/shiny.caddy    ) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/openclaw.caddy ) \
  && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
- # cleanup of any temporary or cache files to keep the image size down
+ ## cleanup of any temporary or cache files to keep the image size down
+ && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && source /opt/utils/script-utils.sh && install__clean
 
 WORKDIR $HOME_DIR
