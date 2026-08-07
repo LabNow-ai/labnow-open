@@ -38,7 +38,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && mkdir -pv /etc/supervisord \
  && ([ ! -f /etc/supervisord/supervisord.conf ] && ln -sf /opt/labnow-open/etc/supervisord.conf /etc/supervisord/ || true ) \
- && printf '[program:caddy]\ncommand=/usr/local/bin/start-caddy.sh\nautostart=true\n' > /etc/supervisord/supervisord.conf \
+ && printf '[program:caddy]\ncommand=/usr/local/bin/start-caddy.sh\nautostart=true\n\n' >> /etc/supervisord/supervisord.conf \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
  ## handle supervisord start options
  && (type jupyter      && echo '{"ServerApp":{"ip":"0.0.0.0","port":8888,"root_dir":"/root","default_url":"/home","token":"","password":"","allow_root":true,"allow_origin":"*","open_browser":false}}' > /opt/conda/etc/jupyter/jupyter_server_config.json || true) \
@@ -54,5 +54,6 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
 
 WORKDIR $HOME_DIR
 ENV STATIC_DIR=/opt/labnow-open/web
+ENV URL_PREFIX="/"
 EXPOSE 80
 CMD ["/bin/bash", "start-supervisord.sh"]
