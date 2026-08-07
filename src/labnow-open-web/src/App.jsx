@@ -31,50 +31,7 @@ import {
 } from "@carbon/icons-react";
 import { useSupervisorController } from "./hooks/useSupervisorController";
 import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
-
-const PROGRAM_DEFINITIONS = {
-  "caddy": { displayName: "Caddy Server", hidden: true },
-  "jupyter": {
-    displayName: "JupyterLab",
-    link: "/lab/",
-    logo: "logo-jupyter.svg",
-    description: "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments."
-  },
-  "vscode": {
-    displayName: "VS Code",
-    link: "/vscode/",
-    logo: "logo-vscode.svg",
-    description: "A full-featured code editor in your browser. Edit files, run terminals, and manage projects."
-  },
-  "rserver": {
-    displayName: "R-Studio",
-    link: "/rserver/",
-    logo: "logo-rserver.svg",
-    description: "RStudio Server for R development and analysis. Build scripts, run models, and visualize results."
-  },
-  "rshiny": {
-    displayName: "R Shiny",
-    link: "/rshiny/",
-    logo: "logo-rshiny.svg",
-    description: "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team."
-  },
-  "hermes-gateway": {
-    displayName: "Hermes Gateway",
-    hidden: true,
-  },
-  "hermes-dashboard": {
-    displayName: "Hermes",
-    link: "/hermes/",
-    logo: "logo-hermes.svg",
-    description: "An agent workspace for managing sessions, skills, configurations, and plans."
-  },
-  "openclaw": {
-    displayName: "OpenClaw",
-    link: "/openclaw/",
-    logo: "logo-openclaw.svg",
-    description: "OpenClaw AI Agent platform. Build and deploy intelligent agents with natural language."
-  },
-};
+import PROGRAM_DEFINITIONS, { resolveProgramNames } from "./api/programDefinitions";
 
 function NotificationBar({ notice, onClose }) {
   if (!notice) {
@@ -101,6 +58,8 @@ export default function App() {
     startProgram,
     stopProgram,
     restartProgram,
+    startPrograms,
+    stopPrograms,
     reloadSupervisor,
     shutdownSupervisor,
     isRunningState,
@@ -153,7 +112,10 @@ export default function App() {
   }, [isDarkMode]);
 
   const handleStartProgram = async (name) => {
-    const result = await startProgram(name);
+    const names = resolveProgramNames(name);
+    const result = names.length > 1
+      ? await startPrograms(names)
+      : await startProgram(name);
     if (!result.ok) {
       pushNotice("error", "Failed to start program", name);
       return;
@@ -162,7 +124,18 @@ export default function App() {
   };
 
   const handleRestartProgram = async (name) => {
-    const result = await restartProgram(name);
+    const names = resolveProgramNames(name);
+    let result;
+    if (names.length > 1) {
+      result = await stopPrograms(names);
+      if (!result.ok) {
+        pushNotice("error", "Failed to stop program", name);
+        return;
+      }
+      result = await startPrograms(names);
+    } else {
+      result = await restartProgram(name);
+    }
     if (!result.ok) {
       pushNotice("error", "Failed to restart program", name);
       return;
@@ -183,7 +156,10 @@ export default function App() {
     setConfirmBusy(true);
     try {
       if (confirm.type === "stop") {
-        const result = await stopProgram(confirm.name);
+        const names = resolveProgramNames(confirm.name);
+        const result = names.length > 1
+          ? await stopPrograms(names)
+          : await stopProgram(confirm.name);
         if (!result.ok) {
           pushNotice("error", "Failed to stop program", confirm.name);
         } else {
