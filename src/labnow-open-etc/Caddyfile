@@ -24,13 +24,10 @@
     @path_user_home_no_slash path {$URL_PREFIX:}home
     redir @path_user_home_no_slash {path}/ 308
 
-    handle_path {$URL_PREFIX:}api {  # default healthcheck endpoint
+    # default healthcheck endpoint
+    handle_path {$URL_PREFIX:}api {
         respond "OK" 200
     }
 
-    handle {  # Proxy all other requests to a default backend server on port 8888
-        reverse_proxy localhost:8888
-    }
-
-    import /etc/caddy/enabled-routes/*.caddy
+    import /etc/caddy/CaddyRoutes/*.caddy
 }
