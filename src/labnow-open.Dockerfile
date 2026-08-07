@@ -33,7 +33,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  ## install Caddy and link the configuration files
  && (type caddy || (source /opt/utils/script-setup-net.sh && setup_caddy && echo "Caddy installed")) \
  && mkdir -pv /etc/caddy && ln -sf /opt/labnow-open/etc/Caddy* /etc/caddy/ \
- && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
+ && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\nexec caddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
  ## handle control scripts and extensions
  && (type supervisord || (source /opt/utils/script-setup-sys.sh && setup_supervisord && echo "Supervisord installed")) \
  && mkdir -pv /etc/supervisord \
