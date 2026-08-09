@@ -8,11 +8,27 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+assert_runtime_status() {
+  local expected_phase="$1" expected_generation="$2" status_file="$3"
+  jq -e --arg phase "$expected_phase" --argjson generation "$expected_generation" '
+    type == "object"
+    and (keys | sort) == (["adapter_id","binding_id","contract_version","generation","lease_id","observed_at","phase","workspace_id"] | sort)
+    and .contract_version == "v1alpha1"
+    and (.workspace_id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]*$") and length <= 128)
+    and (.binding_id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]*$") and length <= 128)
+    and (.lease_id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]*$") and length <= 128)
+    and .generation == $generation
+    and .adapter_id == "openclaw"
+    and .phase == $phase
+    and (.observed_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^[:space:]]+Z$"))
+  ' "$status_file" >/dev/null || fail "RuntimeStatus schema: $expected_phase"
+}
 run_adapter() {
   local action="$1"
   LABNOW_ALLOW_TEST_PATHS=1 \
   LABNOW_MANIFEST_PATH="$WORK_DIR/run/manifest.json" \
   LABNOW_SECRET_PATH="$WORK_DIR/run/secret.json" \
+  LABNOW_STATUS_PATH="$WORK_DIR/run/status.json" \
   OPENCLAW_STATE_DIR="$WORK_DIR/openclaw" \
   OPENCLAW_CONFIG_PATH="$WORK_DIR/openclaw/openclaw.json" \
   LABNOW_MODEL_ACCESS_STATE_DIR="$WORK_DIR/openclaw/labnow-model-access" \
@@ -41,12 +57,13 @@ capabilities="$(run_adapter capabilities)"
 jq -e '.adapter_id == "openclaw" and .supports_reload == false' <<<"$capabilities" >/dev/null || fail "capabilities"
 
 run_adapter apply
+assert_runtime_status applied 1 "$WORK_DIR/run/status.json"
 first_hash="$(sha256sum "$WORK_DIR/openclaw/openclaw.json" | awk '{print $1}')"
 run_adapter apply
 second_hash="$(sha256sum "$WORK_DIR/openclaw/openclaw.json" | awk '{print $1}')"
 [ "$first_hash" = "$second_hash" ] || fail "apply is not idempotent"
 run_adapter probe
-jq -e '.phase == "ready" and .generation == 1 and has("api_key") | not' "$WORK_DIR/openclaw/labnow-model-access/status.json" >/dev/null || fail "ready status"
+assert_runtime_status ready 1 "$WORK_DIR/run/status.json"
 jq -e '
   .models.providers["user-provider"]
   and .channels.telegram.enabled
@@ -66,11 +83,13 @@ jq '.generation = 2' "$WORK_DIR/run/secret.json" > "$WORK_DIR/run/secret.next.js
 mv "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"
 run_adapter apply
-jq -e '.generation == 2' "$WORK_DIR/openclaw/labnow-model-access/status.json" >/dev/null || fail "rotation generation"
+assert_runtime_status applied 2 "$WORK_DIR/run/status.json"
 
 run_adapter remove
+assert_runtime_status removed 2 "$WORK_DIR/run/status.json"
 first_remove_hash="$(sha256sum "$WORK_DIR/openclaw/openclaw.json" | awk '{print $1}')"
 run_adapter remove
+assert_runtime_status removed 2 "$WORK_DIR/run/status.json"
 second_remove_hash="$(sha256sum "$WORK_DIR/openclaw/openclaw.json" | awk '{print $1}')"
 [ "$first_remove_hash" = "$second_remove_hash" ] || fail "remove is not idempotent"
 jq -e '
@@ -82,7 +101,11 @@ jq -e '
 
 for fixture in "$CONTRACT_DIR"/invalid/runtime-manifest-default-not-allowed.json "$CONTRACT_DIR"/invalid/runtime-manifest-wrong-version.json; do
   cp "$fixture" "$WORK_DIR/run/manifest.json"
-  if run_adapter apply >/dev/null 2>&1; then fail "invalid manifest was accepted: $(basename "$fixture")"; fi
+  set +e
+  run_adapter apply >/dev/null 2>&1
+  fixture_exit=$?
+  set -e
+  [ "$fixture_exit" = 67 ] || fail "invalid manifest error code: $(basename "$fixture")=$fixture_exit"
 done
 cp "$CONTRACT_DIR/valid/runtime-manifest.json" "$WORK_DIR/run/manifest.json"
 jq --arg secret "$WORK_DIR/run/secret.json" '.api_key_file = $secret' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
@@ -90,6 +113,10 @@ mv "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq '.binding_id = "wrong-binding"' "$WORK_DIR/run/secret.json" > "$WORK_DIR/run/secret.next.json"
 mv "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"
-if run_adapter apply >/dev/null 2>&1; then fail "mismatched secret was accepted"; fi
+set +e
+run_adapter apply >/dev/null 2>&1
+mismatch_exit=$?
+set -e
+[ "$mismatch_exit" = 69 ] || fail "mismatched secret error code: $mismatch_exit"
 
 printf 'PASS openclaw-model-access-adapter\n'

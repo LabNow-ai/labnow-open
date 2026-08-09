@@ -9,20 +9,22 @@ readonly ADAPTER_VERSION="0.1.0-candidate.2"
 readonly CONTRACT_VERSION="v1alpha1"
 readonly DEFAULT_MANIFEST_PATH="/run/labnow/model-access/manifest.json"
 readonly DEFAULT_SECRET_PATH="/run/labnow/model-access/secret.json"
+readonly DEFAULT_STATUS_PATH="/run/labnow/model-access/status.json"
 
 ACTION="${1:-}"
 MANIFEST_PATH="$DEFAULT_MANIFEST_PATH"
 SECRET_PATH="$DEFAULT_SECRET_PATH"
+STATUS_PATH="$DEFAULT_STATUS_PATH"
 # Unit tests may use an isolated temporary mount. Production never accepts an
 # environment-provided substitute for the Launcher contract mount points.
 if [ "${LABNOW_ALLOW_TEST_PATHS:-}" = "1" ]; then
   MANIFEST_PATH="${LABNOW_MANIFEST_PATH:-$DEFAULT_MANIFEST_PATH}"
   SECRET_PATH="${LABNOW_SECRET_PATH:-$DEFAULT_SECRET_PATH}"
+  STATUS_PATH="${LABNOW_STATUS_PATH:-$DEFAULT_STATUS_PATH}"
 fi
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/root/.openclaw/data}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-${OPENCLAW_STATE_DIR}/openclaw.json}"
 STATE_DIR="${LABNOW_MODEL_ACCESS_STATE_DIR:-${OPENCLAW_STATE_DIR}/labnow-model-access}"
-STATUS_PATH="${STATE_DIR}/status.json"
 OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
 
 die() {
@@ -59,12 +61,19 @@ assert_not_symlink() {
 }
 
 assert_runtime_paths() {
-  [[ "$OPENCLAW_STATE_DIR" = /* && "$OPENCLAW_CONFIG_PATH" = /* && "$STATE_DIR" = /* ]] || die "SECURE_PATH_REQUIRED" 64
+  [[ "$OPENCLAW_STATE_DIR" = /* && "$OPENCLAW_CONFIG_PATH" = /* && "$STATE_DIR" = /* && "$STATUS_PATH" = /* ]] || die "SECURE_PATH_REQUIRED" 64
   assert_not_symlink "$OPENCLAW_STATE_DIR"
   assert_under "$OPENCLAW_STATE_DIR" "$OPENCLAW_CONFIG_PATH"
   assert_under "$OPENCLAW_STATE_DIR" "$STATE_DIR"
   assert_not_symlink "$OPENCLAW_CONFIG_PATH"
   assert_not_symlink "$STATE_DIR"
+}
+
+ensure_status_parent() {
+  local status_parent
+  status_parent="$(dirname -- "$STATUS_PATH")"
+  [ -d "$status_parent" ] && [ ! -L "$status_parent" ] || die "SECURE_PATH_REQUIRED" 64
+  assert_not_symlink "$STATUS_PATH"
 }
 
 assert_regular_secret() {
@@ -142,12 +151,14 @@ manifest_field() {
 }
 
 write_status() {
-  local phase error_code message tmp
+  local phase error_code message status_parent tmp
   phase="$1"
   error_code="${2:-}"
   message="${3:-}"
   ensure_config_parent
-  tmp="$(mktemp "${STATE_DIR}/.status.XXXXXX")"
+  ensure_status_parent
+  status_parent="$(dirname -- "$STATUS_PATH")"
+  tmp="$(mktemp "${status_parent}/.status.XXXXXX")"
   umask 077
   jq -n \
     --arg contract_version "$CONTRACT_VERSION" \
