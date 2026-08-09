@@ -21,7 +21,10 @@ LITELLM_CONTAINER=""
 LOCAL_IMAGE="quay.io/labnow/labnow-open:che-549-openclaw-adapter-local"
 readonly AGENT_TIMEOUT_SECONDS=90
 readonly AGENT_KILL_AFTER_SECONDS=10
+readonly STREAM_SETTLE_SECONDS=8
 TRAJECTORY_SUMMARY_FILE=""
+STREAM_WAIT_FILE=""
+STREAM_WAIT_SECONDS="$STREAM_SETTLE_SECONDS"
 REPORT_TMP=""
 
 trajectory_summary() {
@@ -39,9 +42,9 @@ trajectory_summary() {
             .nonempty_line_count += 1
             | (try {ok:true,event:($line | fromjson)} catch {ok:false}) as $parsed
             | if $parsed.ok then
-                .parsed_event_count += 1
-                | if ($parsed.event | type) == "object" then
-                    if $parsed.event.type == "model.completed" then .model_completed_count += 1 else . end
+                if ($parsed.event | type) == "object" then
+                    .parsed_event_count += 1
+                    | if $parsed.event.type == "model.completed" then .model_completed_count += 1 else . end
                     | if $parsed.event.type == "session.ended" then .session_ended_count += 1 else . end
                     | if ($parsed.event | has("error")) then .error_field_present = true else . end
                   else . end
@@ -49,6 +52,27 @@ trajectory_summary() {
               end
           end)
   ' "$trajectory" || printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}\n'
+}
+
+stream_structure_passed() {
+  jq -e '.nonempty_line_count > 0 and .parsed_event_count > 0 and .parse_error_count == 0' >/dev/null
+}
+
+wait_for_stream_events() {
+  local raw_stream="$1" wait_seconds="$2" summary deadline
+  deadline=$((SECONDS + wait_seconds))
+  while :; do
+    summary="$(trajectory_summary "$raw_stream")"
+    if stream_structure_passed <<<"$summary"; then
+      printf '%s\n' "$summary"
+      return 0
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      printf '%s\n' "$summary"
+      return 70
+    fi
+    sleep 1
+  done
 }
 
 usage() {
@@ -82,6 +106,8 @@ while [ "$#" -gt 0 ]; do
     --litellm-container) LITELLM_CONTAINER="$2"; shift 2 ;;
     --local-image) LOCAL_IMAGE="$2"; shift 2 ;;
     --trajectory-summary) TRAJECTORY_SUMMARY_FILE="$2"; shift 2 ;;
+    --wait-for-stream) STREAM_WAIT_FILE="$2"; shift 2 ;;
+    --stream-wait-seconds) STREAM_WAIT_SECONDS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
@@ -91,6 +117,13 @@ if [ -n "$TRAJECTORY_SUMMARY_FILE" ]; then
   [[ "$TRAJECTORY_SUMMARY_FILE" = /* ]] && [ -f "$TRAJECTORY_SUMMARY_FILE" ] && [ ! -L "$TRAJECTORY_SUMMARY_FILE" ] || exit 64
   trajectory_summary "$TRAJECTORY_SUMMARY_FILE"
   exit 0
+fi
+
+if [ -n "$STREAM_WAIT_FILE" ]; then
+  [[ "$STREAM_WAIT_FILE" = /* ]] && [ ! -L "$STREAM_WAIT_FILE" ] || exit 64
+  [[ "$STREAM_WAIT_SECONDS" =~ ^([1-9]|10)$ ]] || exit 64
+  wait_for_stream_events "$STREAM_WAIT_FILE" "$STREAM_WAIT_SECONDS"
+  exit $?
 fi
 
 [ "$STAGE" = pre-revoke ] || [ "$STAGE" = post-revoke ] || { usage >&2; exit 64; }
@@ -167,6 +200,7 @@ run_stream_agent() {
     -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
     -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
+    -v "$REPO_ROOT/tests/openclaw-model-access-adapter-real-evidence.sh:/usr/local/bin/openclaw-p2-evidence:ro" \
     "$OPENCLAW_IMAGE" -lc 'set +e
       timeout --version >/dev/null 2>&1 || exit 127
       raw=/root/.openclaw/data/p2-g1-stream.raw.jsonl
@@ -184,7 +218,11 @@ run_stream_agent() {
       sleep 1
       timeout --signal=TERM --kill-after=10s 90s openclaw agent --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
       agent_exit=$?
-      exit "$agent_exit"' >/dev/null 2>/dev/null
+      if [ "$agent_exit" -ne 0 ]; then
+        exit "$agent_exit"
+      fi
+      /usr/local/bin/openclaw-p2-evidence --wait-for-stream "$raw" --stream-wait-seconds 8 >/dev/null
+      exit $?' >/dev/null 2>/dev/null
 }
 
 status_file="$WORK_DIR/runtime-status/status.json"
@@ -213,8 +251,12 @@ if [ "$STAGE" = pre-revoke ]; then
   if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false and .parse_error_count == 0' <<<"$g1_chat_summary" >/dev/null; then g1_chat_structure_passed=true; else g1_chat_structure_passed=false; fi
   run_step run_stream_agent "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET"; g1_stream_exit=$?
   raw_stream_file="$WORK_DIR/data/p2-g1-stream.raw.jsonl"
-  if [ -f "$raw_stream_file" ]; then g1_stream_event_count="$(wc -l < "$raw_stream_file" | tr -d ' ')"; else g1_stream_event_count=0; fi
-  if [ "$g1_stream_exit" = 0 ] && [ "$g1_stream_event_count" -gt 0 ]; then g1_stream_terminated=true; else g1_stream_terminated=false; fi
+  g1_stream_summary="$(trajectory_summary "$raw_stream_file")"
+  g1_stream_event_count="$(jq -r '.nonempty_line_count' <<<"$g1_stream_summary")"
+  g1_stream_parsed_event_count="$(jq -r '.parsed_event_count' <<<"$g1_stream_summary")"
+  g1_stream_parse_error_count="$(jq -r '.parse_error_count' <<<"$g1_stream_summary")"
+  if stream_structure_passed <<<"$g1_stream_summary"; then g1_stream_structure_passed=true; else g1_stream_structure_passed=false; fi
+  if [ "$g1_stream_exit" = 0 ] && [ "$g1_stream_structure_passed" = true ]; then g1_stream_terminated=true; else g1_stream_terminated=false; fi
   run_step run_agent p2-g1-tool "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Use exec to run printf P2_TOOL_OK, then reply DONE.'; g1_tool_exit=$?
   if rg -q 'P2_TOOL_OK' "$WORK_DIR/data/agents" 2>/dev/null; then g1_tool_observed=true; else g1_tool_observed=false; fi
   run_step run_adapter apply "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_apply_exit=$?
@@ -224,11 +266,11 @@ if [ "$STAGE" = pre-revoke ]; then
   run_step run_agent p2-g2-controlled-restart "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET" 'Reply GENERATION_2_OK only.'; g2_restart_chat_exit=$?
   g2_restart_chat_summary="$(trajectory_summary "$WORK_DIR/data/agents/main/sessions/p2-g2-controlled-restart.trajectory.jsonl" 2>/dev/null || printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}')"
   if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false and .parse_error_count == 0' <<<"$g2_restart_chat_summary" >/dev/null; then g2_restart_chat_structure_passed=true; else g2_restart_chat_structure_passed=false; fi
-  if [ "$host_fixture_suite_exit" = 0 ] && [ "$container_fixture_suite_exit" = 0 ] && [ "$g1_apply_exit" = 0 ] && [ "$g1_apply_repeat_exit" = 0 ] && [ "$g1_apply_hash_equal" = true ] && [ "$g1_probe_exit" = 0 ] && [ "$g1_chat_exit" = 0 ] && [ "$g1_chat_structure_passed" = true ] && [ "$g1_stream_terminated" = true ] && [ "$g1_tool_exit" = 0 ] && [ "$g1_tool_observed" = true ] && [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$g2_restart_chat_exit" = 0 ] && [ "$g2_restart_chat_structure_passed" = true ]; then pre_passed=true; else pre_passed=false; fi
+  if [ "$host_fixture_suite_exit" = 0 ] && [ "$container_fixture_suite_exit" = 0 ] && [ "$g1_apply_exit" = 0 ] && [ "$g1_apply_repeat_exit" = 0 ] && [ "$g1_apply_hash_equal" = true ] && [ "$g1_probe_exit" = 0 ] && [ "$g1_chat_exit" = 0 ] && [ "$g1_chat_structure_passed" = true ] && [ "$g1_stream_exit" = 0 ] && [ "$g1_stream_terminated" = true ] && [ "$g1_stream_structure_passed" = true ] && [ "$g1_tool_exit" = 0 ] && [ "$g1_tool_observed" = true ] && [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$g2_restart_chat_exit" = 0 ] && [ "$g2_restart_chat_structure_passed" = true ]; then pre_passed=true; else pre_passed=false; fi
   set -e
   report_generation_failed=false
-  jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg first "$g1_apply_first_hash" --arg repeat "$g1_apply_repeat_hash" --arg g2hash "$g2_apply_hash" --argjson equal "$g1_apply_hash_equal" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson chat "$g1_chat_summary" --argjson chat_ok "$g1_chat_structure_passed" --argjson g2chat "$g2_restart_chat_summary" --argjson g2chat_ok "$g2_restart_chat_structure_passed" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson events "$g1_stream_event_count" --argjson ended "$g1_stream_terminated" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" --argjson passed "$pre_passed" \
-    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,raw_event_count:$events,terminated:$ended},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT_TMP" || report_generation_failed=true
+  jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg first "$g1_apply_first_hash" --arg repeat "$g1_apply_repeat_hash" --arg g2hash "$g2_apply_hash" --argjson equal "$g1_apply_hash_equal" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson chat "$g1_chat_summary" --argjson chat_ok "$g1_chat_structure_passed" --argjson g2chat "$g2_restart_chat_summary" --argjson g2chat_ok "$g2_restart_chat_structure_passed" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson events "$g1_stream_event_count" --argjson stream_parsed "$g1_stream_parsed_event_count" --argjson stream_parse_errors "$g1_stream_parse_error_count" --argjson stream_ok "$g1_stream_structure_passed" --argjson ended "$g1_stream_terminated" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" --argjson passed "$pre_passed" \
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent-with-bounded-settle",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,event_count:$events,parsed_event_count:$stream_parsed,parse_error_count:$stream_parse_errors,terminated:$ended,structure_passed:$stream_ok},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT_TMP" || report_generation_failed=true
 else
   set +e
   report_generation_failed=false
