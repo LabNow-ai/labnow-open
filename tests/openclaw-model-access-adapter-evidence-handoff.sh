@@ -23,5 +23,6 @@ jq -n --arg pre "$pre_hash" --arg post "$post_hash" --argjson passed "$passed" '
 chmod 0600 "$output"
 handoff_hash="$(shasum -a 256 "$output" | awk '{print $1}')"
 printf '%s  %s\n' "$handoff_hash" "$(basename "$output")" > "${output}.sha256"
+chmod 0600 "${output}.sha256"
 printf 'handoff_passed=%s handoff_sha256=%s\n' "$passed" "$handoff_hash"
 [ "$passed" = true ]
