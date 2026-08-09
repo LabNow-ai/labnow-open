@@ -22,9 +22,12 @@ LOCAL_IMAGE="quay.io/labnow/labnow-open:che-549-openclaw-adapter-local"
 readonly AGENT_TIMEOUT_SECONDS=90
 readonly AGENT_KILL_AFTER_SECONDS=10
 readonly STREAM_SETTLE_SECONDS=8
+readonly CREDENTIAL_PATTERN='sk-[A-Za-z0-9_-]{16,}|Bearer[[:space:]]+[A-Za-z0-9._-]{16,}'
 TRAJECTORY_SUMMARY_FILE=""
 STREAM_WAIT_FILE=""
 STREAM_WAIT_SECONDS="$STREAM_SETTLE_SECONDS"
+CREDENTIAL_SCAN_FILE=""
+CREDENTIAL_SCAN_COMMAND_EXIT=0
 REPORT_TMP=""
 
 trajectory_summary() {
@@ -75,6 +78,26 @@ wait_for_stream_events() {
   done
 }
 
+credential_scan() {
+  local command_exit="$1"
+  shift
+  local scan_exit
+  if [ "$command_exit" -ne 0 ]; then
+    printf '{"command_exit":%s,"scan_exit":null,"zero_hit":false}' "$command_exit"
+    return 0
+  fi
+  if rg -q -e "$CREDENTIAL_PATTERN" "$@" >/dev/null 2>&1; then
+    scan_exit=0
+  else
+    scan_exit=$?
+  fi
+  case "$scan_exit" in
+    0) printf '{"command_exit":%s,"scan_exit":0,"zero_hit":false}' "$command_exit" ;;
+    1) printf '{"command_exit":%s,"scan_exit":1,"zero_hit":true}' "$command_exit" ;;
+    *) printf '{"command_exit":%s,"scan_exit":%s,"zero_hit":false}' "$command_exit" "$scan_exit" ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -108,6 +131,8 @@ while [ "$#" -gt 0 ]; do
     --trajectory-summary) TRAJECTORY_SUMMARY_FILE="$2"; shift 2 ;;
     --wait-for-stream) STREAM_WAIT_FILE="$2"; shift 2 ;;
     --stream-wait-seconds) STREAM_WAIT_SECONDS="$2"; shift 2 ;;
+    --credential-scan) CREDENTIAL_SCAN_FILE="$2"; shift 2 ;;
+    --scan-command-exit) CREDENTIAL_SCAN_COMMAND_EXIT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
@@ -124,6 +149,13 @@ if [ -n "$STREAM_WAIT_FILE" ]; then
   [[ "$STREAM_WAIT_SECONDS" =~ ^([1-9]|10)$ ]] || exit 64
   wait_for_stream_events "$STREAM_WAIT_FILE" "$STREAM_WAIT_SECONDS"
   exit $?
+fi
+
+if [ -n "$CREDENTIAL_SCAN_FILE" ]; then
+  [[ "$CREDENTIAL_SCAN_FILE" = /* ]] && [ ! -L "$CREDENTIAL_SCAN_FILE" ] || exit 64
+  [[ "$CREDENTIAL_SCAN_COMMAND_EXIT" =~ ^[0-9]+$ ]] || exit 64
+  credential_scan "$CREDENTIAL_SCAN_COMMAND_EXIT" "$CREDENTIAL_SCAN_FILE"
+  exit 0
 fi
 
 [ "$STAGE" = pre-revoke ] || [ "$STAGE" = post-revoke ] || { usage >&2; exit 64; }
@@ -224,6 +256,7 @@ status_summary() {
     printf 'null'
   fi
 }
+
 run_step() { "$@"; }
 
 if [ "$STAGE" = pre-revoke ]; then
@@ -261,7 +294,7 @@ if [ "$STAGE" = pre-revoke ]; then
   set -e
   report_generation_failed=false
   jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg first "$g1_apply_first_hash" --arg repeat "$g1_apply_repeat_hash" --arg g2hash "$g2_apply_hash" --argjson equal "$g1_apply_hash_equal" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson chat "$g1_chat_summary" --argjson chat_ok "$g1_chat_structure_passed" --argjson g2chat "$g2_restart_chat_summary" --argjson g2chat_ok "$g2_restart_chat_structure_passed" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson events "$g1_stream_event_count" --argjson stream_parsed "$g1_stream_parsed_event_count" --argjson stream_parse_errors "$g1_stream_parse_error_count" --argjson stream_ok "$g1_stream_structure_passed" --argjson ended "$g1_stream_terminated" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" --argjson passed "$pre_passed" \
-    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent-with-bounded-settle",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,event_count:$events,parsed_event_count:$stream_parsed,parse_error_count:$stream_parse_errors,terminated:$ended,structure_passed:$stream_ok},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT_TMP" || report_generation_failed=true
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"docker-run OPENCLAW_IMAGE --network host --mount GENERATION_1_MANIFEST_FILE:/run/labnow/model-access/manifest.json:ro --mount GENERATION_1_SECRET_FILE:/run/labnow/model-access/secret.json:ro timeout TERM+kill-after openclaw agent --local --session-id p2-g1-chat --model labnow/<inputs.model> --message <fixed-safe-prompt> --json",stream:"docker-run OPENCLAW_IMAGE --network host --env OPENCLAW_RAW_STREAM=1 --env OPENCLAW_RAW_STREAM_PATH=/root/.openclaw/data/p2-g1-stream.raw.jsonl --mount GENERATION_1_MANIFEST_FILE:/run/labnow/model-access/manifest.json:ro --mount GENERATION_1_SECRET_FILE:/run/labnow/model-access/secret.json:ro timeout TERM+kill-after openclaw agent --local --session-id p2-g1-stream --model labnow/<inputs.model> --message <fixed-safe-prompt> --json; bounded JSONL settle",tool:"docker-run OPENCLAW_IMAGE --network host --mount GENERATION_1_MANIFEST_FILE:/run/labnow/model-access/manifest.json:ro --mount GENERATION_1_SECRET_FILE:/run/labnow/model-access/secret.json:ro timeout TERM+kill-after openclaw agent --local --session-id p2-g1-tool --model labnow/<inputs.model> --message <fixed-safe-prompt> --json",adapter:"docker-run OPENCLAW_IMAGE --network host --mount GENERATION_*_MANIFEST_FILE:/run/labnow/model-access/manifest.json:ro --mount GENERATION_*_SECRET_FILE:/run/labnow/model-access/secret.json:ro openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_manifest_parameter:"GENERATION_1_MANIFEST_FILE",generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_manifest_parameter:"GENERATION_2_MANIFEST_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,event_count:$events,parsed_event_count:$stream_parsed,parse_error_count:$stream_parse_errors,terminated:$ended,structure_passed:$stream_ok},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT_TMP" || report_generation_failed=true
 else
   set +e
   report_generation_failed=false
@@ -275,27 +308,43 @@ else
   remove_repeat_hash="$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')"
   if [ "$remove_first_hash" = "$remove_repeat_hash" ]; then remove_hash_equal=true; else remove_hash_equal=false; fi
   if jq -e '((.models.providers? // {}) | has("labnow") | not) and ((.secrets.providers? // {}) | has("labnow-runtime") | not) and ([.agents.defaults.models? // {} | keys[] | select(startswith("labnow/"))] | length == 0)' "$WORK_DIR/data/openclaw.json" >/dev/null; then managed_config_removed=true; else managed_config_removed=false; fi
-  credential_pattern='sk-[A-Za-z0-9_-]{16,}|Bearer[[:space:]]+[A-Za-z0-9._-]{16,}'
-  if rg -q -e "$credential_pattern" "$WORK_DIR/data/openclaw.json" "$status_file"; then generated_config_or_status_zero_hit=false; else generated_config_or_status_zero_hit=true; fi
-  if rg -q -e "$credential_pattern" "$WORK_DIR/data"; then openclaw_runtime_state_zero_hit=false; else openclaw_runtime_state_zero_hit=true; fi
+  generated_config_or_status_scan="$(credential_scan 0 "$WORK_DIR/data/openclaw.json" "$status_file")"
+  generated_config_or_status_zero_hit="$(jq -r '.zero_hit' <<<"$generated_config_or_status_scan")"
+  openclaw_runtime_state_scan="$(credential_scan 0 "$WORK_DIR/data")"
+  openclaw_runtime_state_zero_hit="$(jq -r '.zero_hit' <<<"$openclaw_runtime_state_scan")"
   litellm_log="$WORK_DIR/.litellm.log"
   docker logs "$LITELLM_CONTAINER" > "$litellm_log" 2>&1
-  if rg -q -e "$credential_pattern" "$litellm_log"; then litellm_log_zero_hit=false; else litellm_log_zero_hit=true; fi
-  find "$WORK_DIR" -maxdepth 1 -name '.litellm.log' -delete
-  if ps -axo command= | rg 'p2-g1-|p2-g2-' | rg -q -e "$credential_pattern"; then process_arguments_zero_hit=false; else process_arguments_zero_hit=true; fi
-  if git -C "$REPO_ROOT" diff --no-ext-diff 7f43656b8db451111f0d6c73e571c45e18db2501..HEAD | rg -q -e "$credential_pattern"; then git_diff_zero_hit=false; else git_diff_zero_hit=true; fi
+  litellm_logs_command_exit=$?
+  litellm_logs_scan="$(credential_scan "$litellm_logs_command_exit" "$litellm_log")"
+  litellm_log_zero_hit="$(jq -r '.zero_hit' <<<"$litellm_logs_scan")"
+  process_snapshot="$WORK_DIR/.process-arguments"
+  ps -axo command= > "$process_snapshot"
+  process_arguments_command_exit=$?
+  process_arguments_scan="$(credential_scan "$process_arguments_command_exit" "$process_snapshot")"
+  process_arguments_zero_hit="$(jq -r '.zero_hit' <<<"$process_arguments_scan")"
+  git_diff_snapshot="$WORK_DIR/.git-diff"
+  git -C "$REPO_ROOT" diff --no-ext-diff 7f43656b8db451111f0d6c73e571c45e18db2501..HEAD > "$git_diff_snapshot"
+  git_diff_command_exit=$?
+  git_diff_scan="$(credential_scan "$git_diff_command_exit" "$git_diff_snapshot")"
+  git_diff_zero_hit="$(jq -r '.zero_hit' <<<"$git_diff_scan")"
   image_scan_dir="$(mktemp -d /private/tmp/labnow-open-p2-image-scan.XXXXXX)"
   docker image save "$LOCAL_IMAGE" -o "$image_scan_dir/image.tar"
+  local_image_save_exit=$?
   local_image_id="$(docker image inspect "$LOCAL_IMAGE" --format '{{.Id}}')"
+  local_image_inspect_exit=$?
   local_image_adapter_sha256="$(docker run --rm --platform linux/amd64 --entrypoint sha256sum "$LOCAL_IMAGE" /usr/local/bin/openclaw-model-access-adapter | awk '{print $1}')"
+  local_image_adapter_hash_exit=$?
   if [ "$local_image_adapter_sha256" = "$SOURCE_ADAPTER_SHA256" ]; then local_image_adapter_matches_source=true; else local_image_adapter_matches_source=false; fi
   local_image_archive_sha256="$(shasum -a 256 "$image_scan_dir/image.tar" | awk '{print $1}')"
-  if rg -a -q -e "$credential_pattern" "$image_scan_dir"; then local_image_layer_zero_hit=false; else local_image_layer_zero_hit=true; fi
+  local_image_archive_hash_exit=$?
+  local_image_layers_scan="$(credential_scan "$local_image_save_exit" "$image_scan_dir")"
+  local_image_layer_zero_hit="$(jq -r '.zero_hit' <<<"$local_image_layers_scan")"
+  if [ "$local_image_save_exit" = 0 ] && [ "$local_image_inspect_exit" = 0 ] && [ "$local_image_adapter_hash_exit" = 0 ] && [ "$local_image_archive_hash_exit" = 0 ]; then local_image_command_success=true; else local_image_command_success=false; fi
   find "$image_scan_dir" -depth -delete
-  if [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$revoked_exit" -ne 0 ] && [ "$rejection_observed" = true ] && [ "$remove_exit" = 0 ] && [ "$remove_repeat_exit" = 0 ] && [ "$remove_hash_equal" = true ] && [ "$managed_config_removed" = true ] && [ "$generated_config_or_status_zero_hit" = true ] && [ "$openclaw_runtime_state_zero_hit" = true ] && [ "$litellm_log_zero_hit" = true ] && [ "$process_arguments_zero_hit" = true ] && [ "$git_diff_zero_hit" = true ] && [ "$local_image_layer_zero_hit" = true ] && [ "$local_image_adapter_matches_source" = true ]; then post_passed=true; else post_passed=false; fi
+  if [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$revoked_exit" -ne 0 ] && [ "$rejection_observed" = true ] && [ "$remove_exit" = 0 ] && [ "$remove_repeat_exit" = 0 ] && [ "$remove_hash_equal" = true ] && [ "$managed_config_removed" = true ] && [ "$generated_config_or_status_zero_hit" = true ] && [ "$openclaw_runtime_state_zero_hit" = true ] && [ "$litellm_log_zero_hit" = true ] && [ "$process_arguments_zero_hit" = true ] && [ "$git_diff_zero_hit" = true ] && [ "$local_image_layer_zero_hit" = true ] && [ "$local_image_command_success" = true ] && [ "$local_image_adapter_matches_source" = true ]; then post_passed=true; else post_passed=false; fi
   set -e
-  jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg local_image "$LOCAL_IMAGE" --arg image_id "$local_image_id" --arg archive "$local_image_archive_sha256" --arg image_adapter "$local_image_adapter_sha256" --arg first "$remove_first_hash" --arg repeat "$remove_repeat_hash" --argjson image_matches "$local_image_adapter_matches_source" --argjson equal "$remove_hash_equal" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson revoked "$revoked_exit" --argjson rejected "$rejection_observed" --argjson remove "$remove_exit" --argjson remover "$remove_repeat_exit" --argjson removed "$managed_config_removed" --argjson config_status "$generated_config_or_status_zero_hit" --argjson runtime "$openclaw_runtime_state_zero_hit" --argjson litellm_log "$litellm_log_zero_hit" --argjson process "$process_arguments_zero_hit" --argjson diff "$git_diff_zero_hit" --argjson image "$local_image_layer_zero_hit" --argjson passed "$post_passed" \
-    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{scan_generated_config_status:"rg-credential-pattern generated-config RuntimeStatus",scan_openclaw_state:"rg-credential-pattern OpenClaw-state",scan_litellm_log:"docker-logs-to-private-temp then rg",scan_process_arguments:"ps-scoped-p2 then rg",scan_git_diff:"git-diff then rg",scan_image_layer:"docker-image-save then rg-a"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove:{first_exit:$remove,repeat_exit:$remover,first_config_sha256:$first,repeat_config_sha256:$repeat,hash_equal:$equal,managed_config_removed:$removed},credential_scan:{generated_config_and_runtime_status_zero_hit:$config_status,openclaw_runtime_state_and_logs_zero_hit:$runtime,litellm_logs_zero_hit:$litellm_log,container_process_arguments_zero_hit:$process,git_diff_zero_hit:$diff,local_image_layers_zero_hit:$image},local_image:{reference:$local_image,image_id:$image_id,archive_sha256:$archive,adapter_sha256:$image_adapter,adapter_matches_source:$image_matches}}}' > "$REPORT_TMP" || report_generation_failed=true
+  jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg local_image "$LOCAL_IMAGE" --arg image_id "$local_image_id" --arg archive "$local_image_archive_sha256" --arg image_adapter "$local_image_adapter_sha256" --arg first "$remove_first_hash" --arg repeat "$remove_repeat_hash" --argjson image_matches "$local_image_adapter_matches_source" --argjson image_command_success "$local_image_command_success" --argjson image_save_exit "$local_image_save_exit" --argjson image_inspect_exit "$local_image_inspect_exit" --argjson image_adapter_hash_exit "$local_image_adapter_hash_exit" --argjson image_archive_hash_exit "$local_image_archive_hash_exit" --argjson image_layers_scan "$local_image_layers_scan" --argjson equal "$remove_hash_equal" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson revoked "$revoked_exit" --argjson rejected "$rejection_observed" --argjson remove "$remove_exit" --argjson remover "$remove_repeat_exit" --argjson removed "$managed_config_removed" --argjson config_scan "$generated_config_or_status_scan" --argjson runtime_scan "$openclaw_runtime_state_scan" --argjson litellm_logs_scan "$litellm_logs_scan" --argjson process_scan "$process_arguments_scan" --argjson git_diff_scan "$git_diff_scan" --argjson passed "$post_passed" \
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{scan_generated_config_status:"rg credential-pattern generated-config RuntimeStatus",scan_openclaw_state:"rg credential-pattern OpenClaw-state",scan_litellm_log:"docker logs LITELLM_CONTAINER to private temp; rg credential-pattern",scan_process_arguments:"ps -axo command= to private temp; rg credential-pattern",scan_git_diff:"git diff BASE..HEAD to private temp; rg credential-pattern",scan_image_layer:"docker image save LOCAL_IMAGE; docker image inspect LOCAL_IMAGE; docker run LOCAL_IMAGE sha256sum adapter; rg -a credential-pattern archive"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_manifest_parameter:"GENERATION_1_MANIFEST_FILE",generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_manifest_parameter:"GENERATION_2_MANIFEST_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove:{first_exit:$remove,repeat_exit:$remover,first_config_sha256:$first,repeat_config_sha256:$repeat,hash_equal:$equal,managed_config_removed:$removed},credential_scan:{generated_config_and_runtime_status:$config_scan,openclaw_runtime_state_and_logs:$runtime_scan,litellm_logs:$litellm_logs_scan,container_process_arguments:$process_scan,git_diff:$git_diff_scan,local_image_layers:$image_layers_scan},local_image:{reference:$local_image,image_id:$image_id,archive_sha256:$archive,adapter_sha256:$image_adapter,save_exit:$image_save_exit,inspect_exit:$image_inspect_exit,adapter_hash_exit:$image_adapter_hash_exit,archive_hash_exit:$image_archive_hash_exit,command_success:$image_command_success,adapter_matches_source:$image_matches}}}' > "$REPORT_TMP" || report_generation_failed=true
 fi
 
 if [ "$report_generation_failed" = true ] || ! jq -e . "$REPORT_TMP" >/dev/null 2>&1; then
