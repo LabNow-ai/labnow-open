@@ -19,6 +19,8 @@ OPENCLAW_IMAGE=""
 LITELLM_IMAGE=""
 LITELLM_CONTAINER=""
 LOCAL_IMAGE="quay.io/labnow/labnow-open:che-549-openclaw-adapter-local"
+readonly AGENT_TIMEOUT_SECONDS=90
+readonly AGENT_KILL_AFTER_SECONDS=10
 
 usage() {
   cat <<'EOF'
@@ -71,8 +73,19 @@ for manifest_file in "$GENERATION_1_MANIFEST" "$GENERATION_2_MANIFEST"; do
   [ -f "$manifest_file" ] && [ ! -L "$manifest_file" ] || { printf 'manifest unavailable\n' >&2; exit 66; }
 done
 
+REPORT_LOCK="${REPORT}.lock"
+if ! mkdir "$REPORT_LOCK" 2>/dev/null; then
+  printf 'report lock unavailable\n' >&2
+  exit 75
+fi
 WORK_DIR="$(mktemp -d /private/tmp/labnow-open-p2-evidence.XXXXXX)"
-trap 'find "$WORK_DIR" -depth -delete' EXIT
+cleanup() {
+  rmdir "$REPORT_LOCK" 2>/dev/null || true
+  [ ! -d "$WORK_DIR" ] || find "$WORK_DIR" -depth -delete
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 mkdir -p "$WORK_DIR/runtime-status" "$WORK_DIR/data"
 touch "$WORK_DIR/runtime-status/manifest.json" "$WORK_DIR/runtime-status/secret.json"
 chmod 0600 "$WORK_DIR/runtime-status/manifest.json" "$WORK_DIR/runtime-status/secret.json"
@@ -102,7 +115,7 @@ run_agent() {
     -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
     -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
-    "$OPENCLAW_IMAGE" -lc "openclaw agent --local --session-id $session_id --model labnow/$MODEL --message '$prompt' --json >/dev/null 2>/tmp/agent.stderr" >/dev/null 2>/dev/null
+    "$OPENCLAW_IMAGE" -lc "timeout --signal=TERM --kill-after=${AGENT_KILL_AFTER_SECONDS}s ${AGENT_TIMEOUT_SECONDS}s openclaw agent --local --session-id $session_id --model labnow/$MODEL --message '$prompt' --json >/dev/null 2>/tmp/agent.stderr" >/dev/null 2>/dev/null
 }
 
 run_stream_agent() {
@@ -116,15 +129,22 @@ run_stream_agent() {
     -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
     "$OPENCLAW_IMAGE" -lc 'set +e
+      timeout --version >/dev/null 2>&1 || exit 127
       raw=/root/.openclaw/data/p2-g1-stream.raw.jsonl
       : > "$raw"
-      openclaw gateway run --allow-unconfigured --auth none --port 18789 --raw-stream --raw-stream-path "$raw" >/tmp/p2-gateway.log 2>&1 &
+      gateway_pid=""
+      cleanup_gateway() {
+        if [ -n "$gateway_pid" ]; then
+          kill "$gateway_pid" >/dev/null 2>&1
+          wait "$gateway_pid" >/dev/null 2>&1
+        fi
+      }
+      trap cleanup_gateway EXIT INT TERM
+      timeout --signal=TERM --kill-after=10s 120s openclaw gateway run --allow-unconfigured --auth none --port 18789 --raw-stream --raw-stream-path "$raw" >/tmp/p2-gateway.log 2>&1 &
       gateway_pid=$!
       sleep 1
-      openclaw agent --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
+      timeout --signal=TERM --kill-after=10s 90s openclaw agent --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
       agent_exit=$?
-      kill "$gateway_pid" >/dev/null 2>&1
-      wait "$gateway_pid" >/dev/null 2>&1
       exit "$agent_exit"' >/dev/null 2>/dev/null
 }
 
@@ -136,7 +156,11 @@ trajectory_summary() {
 
 status_file="$WORK_DIR/runtime-status/status.json"
 status_summary() {
-  jq -c '{contract_version,workspace_id,binding_id,lease_id,generation,adapter_id,phase,observed_at,error_code,message}' "$status_file"
+  if [ -f "$status_file" ] && jq -e . "$status_file" >/dev/null 2>&1; then
+    jq -c '{contract_version,workspace_id,binding_id,lease_id,generation,adapter_id,phase,observed_at,error_code,message}' "$status_file"
+  else
+    printf 'null'
+  fi
 }
 run_step() { "$@"; }
 
