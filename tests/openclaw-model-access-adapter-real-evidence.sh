@@ -17,6 +17,8 @@ GENERATION_2_SECRET=""
 MODEL=""
 OPENCLAW_IMAGE=""
 LITELLM_IMAGE=""
+LITELLM_CONTAINER=""
+LOCAL_IMAGE="quay.io/labnow/labnow-open:che-549-openclaw-adapter-local"
 
 usage() {
   cat <<'EOF'
@@ -28,7 +30,7 @@ Usage:
     --generation-2-manifest /absolute/path/manifest.json \
     --generation-2-secret /absolute/path/secret.json \
     --model INTERNAL_MODEL --openclaw-image IMAGE@sha256:DIGEST \
-    --litellm-image IMAGE@sha256:DIGEST
+    --litellm-image IMAGE@sha256:DIGEST --litellm-container CONTAINER
 
 The report records parameter names only, never secret paths or contents. Run
 pre-revoke first; revoke generation 1 outside this script; then run post-revoke.
@@ -46,6 +48,8 @@ while [ "$#" -gt 0 ]; do
     --model) MODEL="$2"; shift 2 ;;
     --openclaw-image) OPENCLAW_IMAGE="$2"; shift 2 ;;
     --litellm-image) LITELLM_IMAGE="$2"; shift 2 ;;
+    --litellm-container) LITELLM_CONTAINER="$2"; shift 2 ;;
+    --local-image) LOCAL_IMAGE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
@@ -55,7 +59,7 @@ done
 for input_file in "$REPORT" "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; do
   [[ "$input_file" = /* ]] || { printf 'absolute path required\n' >&2; exit 64; }
 done
-[ -n "$MODEL" ] && [ -n "$OPENCLAW_IMAGE" ] && [ -n "$LITELLM_IMAGE" ] || { usage >&2; exit 64; }
+[ -n "$MODEL" ] && [ -n "$OPENCLAW_IMAGE" ] && [ -n "$LITELLM_IMAGE" ] && [ -n "$LITELLM_CONTAINER" ] || { usage >&2; exit 64; }
 for secret_file in "$GENERATION_1_SECRET" "$GENERATION_2_SECRET"; do
   [ -f "$secret_file" ] && [ ! -L "$secret_file" ] || { printf 'secret file unavailable\n' >&2; exit 65; }
   secret_mode="$(stat -f '%Lp' "$secret_file" 2>/dev/null || stat -c '%a' "$secret_file")"
@@ -78,6 +82,7 @@ run_adapter() {
   docker run --rm --platform linux/amd64 --network host --entrypoint bash \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
     -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
+    -e P2_MODEL="$MODEL" \
     -v "$WORK_DIR/runtime-status:/run/labnow/model-access" \
     -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
     -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
@@ -98,6 +103,35 @@ run_agent() {
     "$OPENCLAW_IMAGE" -lc "openclaw agent --local --session-id $session_id --model labnow/$MODEL --message '$prompt' --json >/dev/null 2>/tmp/agent.stderr" >/dev/null 2>/dev/null
 }
 
+run_stream_agent() {
+  local manifest_file="$1" secret_file="$2"
+  docker run --rm --platform linux/amd64 --network host --entrypoint bash \
+    -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
+    -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
+    -e P2_MODEL="$MODEL" \
+    -v "$WORK_DIR/runtime-status:/run/labnow/model-access" \
+    -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
+    -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
+    -v "$WORK_DIR/data:/root/.openclaw/data" \
+    "$OPENCLAW_IMAGE" -lc 'set +e
+      raw=/root/.openclaw/data/p2-g1-stream.raw.jsonl
+      : > "$raw"
+      openclaw gateway run --allow-unconfigured --auth none --port 18789 --raw-stream --raw-stream-path "$raw" >/tmp/p2-gateway.log 2>&1 &
+      gateway_pid=$!
+      sleep 1
+      openclaw agent --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
+      agent_exit=$?
+      kill "$gateway_pid" >/dev/null 2>&1
+      wait "$gateway_pid" >/dev/null 2>&1
+      exit "$agent_exit"' >/dev/null 2>/dev/null
+}
+
+trajectory_summary() {
+  local session_id="$1" trajectory="$WORK_DIR/data/agents/main/sessions/${session_id}.trajectory.jsonl"
+  if [ ! -f "$trajectory" ]; then printf '{"model_completed_count":0,"session_ended_count":0,"error_field_present":false}'; return; fi
+  jq -s '{model_completed_count:([.[] | select(.type == "model.completed")] | length),session_ended_count:([.[] | select(.type == "session.ended")] | length),error_field_present:any(.[]; has("error"))}' "$trajectory"
+}
+
 status_file="$WORK_DIR/runtime-status/status.json"
 status_summary() {
   jq -c '{contract_version,workspace_id,binding_id,lease_id,generation,adapter_id,phase,observed_at,error_code,message}' "$status_file"
@@ -114,7 +148,11 @@ if [ "$STAGE" = pre-revoke ]; then
   run_step run_adapter probe "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET"; g1_probe_exit=$?
   g1_status="$(status_summary)"
   run_step run_agent p2-g1-chat "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Reply READY only.'; g1_chat_exit=$?
-  run_step run_agent p2-g1-stream "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Return STREAM_OK only.'; g1_stream_exit=$?
+  g1_chat_summary="$(trajectory_summary p2-g1-chat)"
+  run_step run_stream_agent "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET"; g1_stream_exit=$?
+  raw_stream_file="$WORK_DIR/data/p2-g1-stream.raw.jsonl"
+  if [ -f "$raw_stream_file" ]; then g1_stream_event_count="$(wc -l < "$raw_stream_file" | tr -d ' ')"; else g1_stream_event_count=0; fi
+  if [ "$g1_stream_exit" = 0 ] && [ "$g1_stream_event_count" -gt 0 ]; then g1_stream_terminated=true; else g1_stream_terminated=false; fi
   run_step run_agent p2-g1-tool "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Use exec to run printf P2_TOOL_OK, then reply DONE.'; g1_tool_exit=$?
   if rg -q 'P2_TOOL_OK' "$WORK_DIR/data/agents" 2>/dev/null; then g1_tool_observed=true; else g1_tool_observed=false; fi
   run_step run_adapter apply "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_apply_exit=$?
@@ -122,9 +160,10 @@ if [ "$STAGE" = pre-revoke ]; then
   run_step run_adapter probe "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_probe_exit=$?
   g2_status="$(status_summary)"
   run_step run_agent p2-g2-controlled-restart "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET" 'Reply GENERATION_2_OK only.'; g2_restart_chat_exit=$?
+  if [ "$host_fixture_suite_exit" = 0 ] && [ "$container_fixture_suite_exit" = 0 ] && [ "$g1_apply_exit" = 0 ] && [ "$g1_apply_repeat_exit" = 0 ] && [ "$g1_probe_exit" = 0 ] && [ "$g1_chat_exit" = 0 ] && [ "$g1_stream_terminated" = true ] && [ "$g1_tool_exit" = 0 ] && [ "$g1_tool_observed" = true ] && [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$g2_restart_chat_exit" = 0 ]; then pre_passed=true; else pre_passed=false; fi
   set -e
-  jq -n --arg stage "$STAGE" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg g1hash "$g1_apply_hash" --arg g2hash "$g2_apply_hash" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" \
-    '{schema:"labnow-p2-r2-evidence-v1",stage:$stage,contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,probe_exit:$p,config_sha256:$g1hash,status:$g1status,chat_exit:$c,stream_exit:$s,tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat_exit:$r2}}}' > "$REPORT"
+  jq -n --arg stage "$STAGE" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg g1hash "$g1_apply_hash" --arg g2hash "$g2_apply_hash" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson chat "$g1_chat_summary" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson events "$g1_stream_event_count" --argjson ended "$g1_stream_terminated" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" --argjson passed "$pre_passed" \
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,probe_exit:$p,config_sha256:$g1hash,status:$g1status,chat:{exit:$c,structure:$chat},stream:{exit:$s,raw_event_count:$events,terminated:$ended},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat_exit:$r2}}}' > "$REPORT"
 else
   set +e
   run_step run_adapter apply "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_apply_exit=$?
@@ -136,13 +175,29 @@ else
   run_step run_adapter remove "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; remove_repeat_exit=$?
   if jq -e '((.models.providers? // {}) | has("labnow") | not) and ((.secrets.providers? // {}) | has("labnow-runtime") | not) and ([.agents.defaults.models? // {} | keys[] | select(startswith("labnow/"))] | length == 0)' "$WORK_DIR/data/openclaw.json" >/dev/null; then managed_config_removed=true; else managed_config_removed=false; fi
   credential_pattern='sk-[A-Za-z0-9_-]{16,}|Bearer[[:space:]]+[A-Za-z0-9._-]{16,}'
-  if rg -q -e "$credential_pattern" "$WORK_DIR"; then plaintext_credential_detected=true; else plaintext_credential_detected=false; fi
+  if rg -q -e "$credential_pattern" "$WORK_DIR/data/openclaw.json" "$status_file"; then generated_config_or_status_zero_hit=false; else generated_config_or_status_zero_hit=true; fi
+  if rg -q -e "$credential_pattern" "$WORK_DIR/data"; then openclaw_runtime_state_zero_hit=false; else openclaw_runtime_state_zero_hit=true; fi
+  litellm_log="$WORK_DIR/.litellm.log"
+  docker logs "$LITELLM_CONTAINER" > "$litellm_log" 2>&1
+  if rg -q -e "$credential_pattern" "$litellm_log"; then litellm_log_zero_hit=false; else litellm_log_zero_hit=true; fi
+  find "$WORK_DIR" -maxdepth 1 -name '.litellm.log' -delete
+  if ps -axo command= | rg 'p2-g1-|p2-g2-' | rg -q -e "$credential_pattern"; then process_arguments_zero_hit=false; else process_arguments_zero_hit=true; fi
+  if git -C "$REPO_ROOT" diff --no-ext-diff 7f43656b8db451111f0d6c73e571c45e18db2501..HEAD | rg -q -e "$credential_pattern"; then git_diff_zero_hit=false; else git_diff_zero_hit=true; fi
+  image_scan_dir="$(mktemp -d /private/tmp/labnow-open-p2-image-scan.XXXXXX)"
+  docker image save "$LOCAL_IMAGE" -o "$image_scan_dir/image.tar"
+  local_image_id="$(docker image inspect "$LOCAL_IMAGE" --format '{{.Id}}')"
+  local_image_archive_sha256="$(shasum -a 256 "$image_scan_dir/image.tar" | awk '{print $1}')"
+  if rg -a -q -e "$credential_pattern" "$image_scan_dir"; then local_image_layer_zero_hit=false; else local_image_layer_zero_hit=true; fi
+  find "$image_scan_dir" -depth -delete
+  if [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$revoked_exit" -ne 0 ] && [ "$rejection_observed" = true ] && [ "$remove_exit" = 0 ] && [ "$remove_repeat_exit" = 0 ] && [ "$managed_config_removed" = true ] && [ "$generated_config_or_status_zero_hit" = true ] && [ "$openclaw_runtime_state_zero_hit" = true ] && [ "$litellm_log_zero_hit" = true ] && [ "$process_arguments_zero_hit" = true ] && [ "$git_diff_zero_hit" = true ] && [ "$local_image_layer_zero_hit" = true ]; then post_passed=true; else post_passed=false; fi
   set -e
-  jq -n --arg stage "$STAGE" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg hash "$remove_hash" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson revoked "$revoked_exit" --argjson rejected "$rejection_observed" --argjson remove "$remove_exit" --argjson remover "$remove_repeat_exit" --argjson removed "$managed_config_removed" --argjson leaked "$plaintext_credential_detected" \
-    '{schema:"labnow-p2-r2-evidence-v1",stage:$stage,contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove_exit:$remove,repeat_remove_exit:$remover,remove_config_sha256:$hash,managed_config_removed:$removed,credential_scan:{scope:["generated-config","runtime-status","agent-state"],plaintext_credential_detected:$leaked}}}' > "$REPORT"
+  jq -n --arg stage "$STAGE" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg local_image "$LOCAL_IMAGE" --arg image_id "$local_image_id" --arg archive "$local_image_archive_sha256" --arg hash "$remove_hash" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson revoked "$revoked_exit" --argjson rejected "$rejection_observed" --argjson remove "$remove_exit" --argjson remover "$remove_repeat_exit" --argjson removed "$managed_config_removed" --argjson config_status "$generated_config_or_status_zero_hit" --argjson runtime "$openclaw_runtime_state_zero_hit" --argjson litellm_log "$litellm_log_zero_hit" --argjson process "$process_arguments_zero_hit" --argjson diff "$git_diff_zero_hit" --argjson image "$local_image_layer_zero_hit" --argjson passed "$post_passed" \
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,command_templates:{scan_generated_config_status:"rg-credential-pattern generated-config RuntimeStatus",scan_openclaw_state:"rg-credential-pattern OpenClaw-state",scan_litellm_log:"docker-logs-to-private-temp then rg",scan_process_arguments:"ps-scoped-p2 then rg",scan_git_diff:"git-diff then rg",scan_image_layer:"docker-image-save then rg-a"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove_exit:$remove,repeat_remove_exit:$remover,remove_config_sha256:$hash,managed_config_removed:$removed,credential_scan:{generated_config_and_runtime_status_zero_hit:$config_status,openclaw_runtime_state_and_logs_zero_hit:$runtime,litellm_logs_zero_hit:$litellm_log,container_process_arguments_zero_hit:$process,git_diff_zero_hit:$diff,local_image_layers_zero_hit:$image},local_image:{reference:$local_image,image_id:$image_id,archive_sha256:$archive}}' > "$REPORT"
 fi
 
 chmod 0600 "$REPORT"
 report_hash="$(shasum -a 256 "$REPORT" | awk '{print $1}')"
 printf '%s  %s\n' "$report_hash" "$(basename "$REPORT")" > "${REPORT}.sha256"
 printf 'stage=%s report_sha256=%s\n' "$STAGE" "$report_hash"
+if [ "$STAGE" = pre-revoke ]; then final_passed="$pre_passed"; else final_passed="$post_passed"; fi
+[ "$final_passed" = true ]
