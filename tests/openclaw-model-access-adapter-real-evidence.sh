@@ -195,6 +195,8 @@ run_stream_agent() {
   docker run --rm --platform linux/amd64 --network host --entrypoint bash \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
     -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
+    -e OPENCLAW_RAW_STREAM=1 \
+    -e OPENCLAW_RAW_STREAM_PATH=/root/.openclaw/data/p2-g1-stream.raw.jsonl \
     -e P2_MODEL="$MODEL" \
     -v "$WORK_DIR/runtime-status:/run/labnow/model-access" \
     -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
@@ -205,18 +207,7 @@ run_stream_agent() {
       timeout --version >/dev/null 2>&1 || exit 127
       raw=/root/.openclaw/data/p2-g1-stream.raw.jsonl
       : > "$raw"
-      gateway_pid=""
-      cleanup_gateway() {
-        if [ -n "$gateway_pid" ]; then
-          kill "$gateway_pid" >/dev/null 2>&1
-          wait "$gateway_pid" >/dev/null 2>&1
-        fi
-      }
-      trap cleanup_gateway EXIT INT TERM
-      timeout --signal=TERM --kill-after=10s 120s openclaw gateway run --allow-unconfigured --auth none --port 18789 --raw-stream --raw-stream-path "$raw" >/tmp/p2-gateway.log 2>&1 &
-      gateway_pid=$!
-      sleep 1
-      timeout --signal=TERM --kill-after=10s 90s openclaw agent --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
+      timeout --signal=TERM --kill-after=10s 90s openclaw agent --local --session-id p2-g1-stream --model "labnow/$P2_MODEL" --message "Return STREAM_OK only." --json >/dev/null 2>/tmp/p2-stream.stderr
       agent_exit=$?
       if [ "$agent_exit" -ne 0 ]; then
         exit "$agent_exit"
