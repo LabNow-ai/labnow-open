@@ -34,6 +34,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type caddy       || (source /opt/utils/script-setup-net.sh && setup_caddy       && echo "Caddy installed")) \
  && mkdir -pv /etc/supervisord && ln -sf /opt/labnow-open/etc/supervisord.conf   /etc/supervisord/ \
  && mkdir -pv /etc/caddy /etc/caddy/enabled-routes && ln -sf /opt/labnow-open/etc/Caddyfile /etc/caddy/ \
+ && chmod +x /opt/labnow-open/etc/openclaw-model-access-adapter.sh \
+ && ln -sf /opt/labnow-open/etc/openclaw-model-access-adapter.sh /usr/local/bin/openclaw-model-access-adapter \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
  && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
