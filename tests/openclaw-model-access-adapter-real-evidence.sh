@@ -21,6 +21,35 @@ LITELLM_CONTAINER=""
 LOCAL_IMAGE="quay.io/labnow/labnow-open:che-549-openclaw-adapter-local"
 readonly AGENT_TIMEOUT_SECONDS=90
 readonly AGENT_KILL_AFTER_SECONDS=10
+TRAJECTORY_SUMMARY_FILE=""
+REPORT_TMP=""
+
+trajectory_summary() {
+  local trajectory="$1"
+  if [ ! -f "$trajectory" ] || [ -L "$trajectory" ]; then
+    printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}\n'
+    return 0
+  fi
+  jq -R -s '
+    split("\n")
+    | reduce .[] as $line
+        ({nonempty_line_count:0,parsed_event_count:0,parse_error_count:0,model_completed_count:0,session_ended_count:0,error_field_present:false};
+          if ($line | length) == 0 then .
+          else
+            .nonempty_line_count += 1
+            | (try {ok:true,event:($line | fromjson)} catch {ok:false}) as $parsed
+            | if $parsed.ok then
+                .parsed_event_count += 1
+                | if ($parsed.event | type) == "object" then
+                    if $parsed.event.type == "model.completed" then .model_completed_count += 1 else . end
+                    | if $parsed.event.type == "session.ended" then .session_ended_count += 1 else . end
+                    | if ($parsed.event | has("error")) then .error_field_present = true else . end
+                  else . end
+              else .parse_error_count += 1
+              end
+          end)
+  ' "$trajectory" || printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}\n'
+}
 
 usage() {
   cat <<'EOF'
@@ -52,10 +81,17 @@ while [ "$#" -gt 0 ]; do
     --litellm-image) LITELLM_IMAGE="$2"; shift 2 ;;
     --litellm-container) LITELLM_CONTAINER="$2"; shift 2 ;;
     --local-image) LOCAL_IMAGE="$2"; shift 2 ;;
+    --trajectory-summary) TRAJECTORY_SUMMARY_FILE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
 done
+
+if [ -n "$TRAJECTORY_SUMMARY_FILE" ]; then
+  [[ "$TRAJECTORY_SUMMARY_FILE" = /* ]] && [ -f "$TRAJECTORY_SUMMARY_FILE" ] && [ ! -L "$TRAJECTORY_SUMMARY_FILE" ] || exit 64
+  trajectory_summary "$TRAJECTORY_SUMMARY_FILE"
+  exit 0
+fi
 
 [ "$STAGE" = pre-revoke ] || [ "$STAGE" = post-revoke ] || { usage >&2; exit 64; }
 for input_file in "$REPORT" "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; do
@@ -78,9 +114,12 @@ if ! mkdir "$REPORT_LOCK" 2>/dev/null; then
   printf 'report lock unavailable\n' >&2
   exit 75
 fi
+REPORT_TMP="$(mktemp "$(dirname "$REPORT")/.${REPORT##*/}.XXXXXX")"
+chmod 0600 "$REPORT_TMP"
 WORK_DIR="$(mktemp -d /private/tmp/labnow-open-p2-evidence.XXXXXX)"
 cleanup() {
   rmdir "$REPORT_LOCK" 2>/dev/null || true
+  [ -z "$REPORT_TMP" ] || find "$(dirname "$REPORT_TMP")" -maxdepth 1 -name "$(basename "$REPORT_TMP")" -delete
   [ ! -d "$WORK_DIR" ] || find "$WORK_DIR" -depth -delete
 }
 trap cleanup EXIT
@@ -148,12 +187,6 @@ run_stream_agent() {
       exit "$agent_exit"' >/dev/null 2>/dev/null
 }
 
-trajectory_summary() {
-  local session_id="$1" trajectory="$WORK_DIR/data/agents/main/sessions/${session_id}.trajectory.jsonl"
-  if [ ! -f "$trajectory" ]; then printf '{"model_completed_count":0,"session_ended_count":0,"error_field_present":false}'; return; fi
-  jq -s '{model_completed_count:([.[] | select(.type == "model.completed")] | length),session_ended_count:([.[] | select(.type == "session.ended")] | length),error_field_present:any(.[]; has("error"))}' "$trajectory"
-}
-
 status_file="$WORK_DIR/runtime-status/status.json"
 status_summary() {
   if [ -f "$status_file" ] && jq -e . "$status_file" >/dev/null 2>&1; then
@@ -176,8 +209,8 @@ if [ "$STAGE" = pre-revoke ]; then
   run_step run_adapter probe "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET"; g1_probe_exit=$?
   g1_status="$(status_summary)"
   run_step run_agent p2-g1-chat "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Reply READY only.'; g1_chat_exit=$?
-  g1_chat_summary="$(trajectory_summary p2-g1-chat)"
-  if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false' <<<"$g1_chat_summary" >/dev/null; then g1_chat_structure_passed=true; else g1_chat_structure_passed=false; fi
+  g1_chat_summary="$(trajectory_summary "$WORK_DIR/data/agents/main/sessions/p2-g1-chat.trajectory.jsonl" 2>/dev/null || printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}')"
+  if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false and .parse_error_count == 0' <<<"$g1_chat_summary" >/dev/null; then g1_chat_structure_passed=true; else g1_chat_structure_passed=false; fi
   run_step run_stream_agent "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET"; g1_stream_exit=$?
   raw_stream_file="$WORK_DIR/data/p2-g1-stream.raw.jsonl"
   if [ -f "$raw_stream_file" ]; then g1_stream_event_count="$(wc -l < "$raw_stream_file" | tr -d ' ')"; else g1_stream_event_count=0; fi
@@ -189,14 +222,16 @@ if [ "$STAGE" = pre-revoke ]; then
   run_step run_adapter probe "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_probe_exit=$?
   g2_status="$(status_summary)"
   run_step run_agent p2-g2-controlled-restart "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET" 'Reply GENERATION_2_OK only.'; g2_restart_chat_exit=$?
-  g2_restart_chat_summary="$(trajectory_summary p2-g2-controlled-restart)"
-  if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false' <<<"$g2_restart_chat_summary" >/dev/null; then g2_restart_chat_structure_passed=true; else g2_restart_chat_structure_passed=false; fi
+  g2_restart_chat_summary="$(trajectory_summary "$WORK_DIR/data/agents/main/sessions/p2-g2-controlled-restart.trajectory.jsonl" 2>/dev/null || printf '{"nonempty_line_count":0,"parsed_event_count":0,"parse_error_count":1,"model_completed_count":0,"session_ended_count":0,"error_field_present":true}')"
+  if jq -e '.model_completed_count > 0 and .session_ended_count > 0 and .error_field_present == false and .parse_error_count == 0' <<<"$g2_restart_chat_summary" >/dev/null; then g2_restart_chat_structure_passed=true; else g2_restart_chat_structure_passed=false; fi
   if [ "$host_fixture_suite_exit" = 0 ] && [ "$container_fixture_suite_exit" = 0 ] && [ "$g1_apply_exit" = 0 ] && [ "$g1_apply_repeat_exit" = 0 ] && [ "$g1_apply_hash_equal" = true ] && [ "$g1_probe_exit" = 0 ] && [ "$g1_chat_exit" = 0 ] && [ "$g1_chat_structure_passed" = true ] && [ "$g1_stream_terminated" = true ] && [ "$g1_tool_exit" = 0 ] && [ "$g1_tool_observed" = true ] && [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$g2_restart_chat_exit" = 0 ] && [ "$g2_restart_chat_structure_passed" = true ]; then pre_passed=true; else pre_passed=false; fi
   set -e
+  report_generation_failed=false
   jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg first "$g1_apply_first_hash" --arg repeat "$g1_apply_repeat_hash" --arg g2hash "$g2_apply_hash" --argjson equal "$g1_apply_hash_equal" --argjson g1status "$g1_status" --argjson g2status "$g2_status" --argjson chat "$g1_chat_summary" --argjson chat_ok "$g1_chat_structure_passed" --argjson g2chat "$g2_restart_chat_summary" --argjson g2chat_ok "$g2_restart_chat_structure_passed" --argjson host "$host_fixture_suite_exit" --argjson container "$container_fixture_suite_exit" --argjson a "$g1_apply_exit" --argjson ar "$g1_apply_repeat_exit" --argjson p "$g1_probe_exit" --argjson c "$g1_chat_exit" --argjson s "$g1_stream_exit" --argjson events "$g1_stream_event_count" --argjson ended "$g1_stream_terminated" --argjson t "$g1_tool_exit" --argjson tool "$g1_tool_observed" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson r2 "$g2_restart_chat_exit" --argjson passed "$pre_passed" \
-    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,raw_event_count:$events,terminated:$ended},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT"
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{chat:"openclaw-agent-local-json",stream:"openclaw-gateway-raw-stream-plus-agent",tool:"openclaw-agent-local-json-exec",adapter:"openclaw-model-access-adapter ACTION"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},fixture_checks:{host_suite_exit:$host,container_suite_exit:$container,cases:[{case:"runtime-manifest-default-not-allowed",action:"apply",expected_error_code:67},{case:"runtime-manifest-wrong-version",action:"apply",expected_error_code:67},{case:"runtime-secret-identity-mismatch",action:"apply",expected_error_code:69}]},checks:{generation_1:{apply_exit:$a,repeat_apply_exit:$ar,apply_first_config_sha256:$first,apply_repeat_config_sha256:$repeat,apply_hash_equal:$equal,probe_exit:$p,status:$g1status,chat:{exit:$c,structure:$chat,structure_passed:$chat_ok},stream:{exit:$s,raw_event_count:$events,terminated:$ended},tool_exit:$t,tool_observed:$tool},generation_2:{apply_exit:$a2,probe_exit:$p2,config_sha256:$g2hash,status:$g2status,controlled_restart_chat:{exit:$r2,structure:$g2chat,structure_passed:$g2chat_ok}}}}' > "$REPORT_TMP" || report_generation_failed=true
 else
   set +e
+  report_generation_failed=false
   run_step run_adapter apply "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_apply_exit=$?
   run_step run_adapter probe "$GENERATION_2_MANIFEST" "$GENERATION_2_SECRET"; g2_probe_exit=$?
   run_step run_agent p2-g1-revoked "$GENERATION_1_MANIFEST" "$GENERATION_1_SECRET" 'Reply REVOKED_CHECK only.'; revoked_exit=$?
@@ -227,9 +262,17 @@ else
   if [ "$g2_apply_exit" = 0 ] && [ "$g2_probe_exit" = 0 ] && [ "$revoked_exit" -ne 0 ] && [ "$rejection_observed" = true ] && [ "$remove_exit" = 0 ] && [ "$remove_repeat_exit" = 0 ] && [ "$remove_hash_equal" = true ] && [ "$managed_config_removed" = true ] && [ "$generated_config_or_status_zero_hit" = true ] && [ "$openclaw_runtime_state_zero_hit" = true ] && [ "$litellm_log_zero_hit" = true ] && [ "$process_arguments_zero_hit" = true ] && [ "$git_diff_zero_hit" = true ] && [ "$local_image_layer_zero_hit" = true ] && [ "$local_image_adapter_matches_source" = true ]; then post_passed=true; else post_passed=false; fi
   set -e
   jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" --arg bundle "$CONTRACT_BUNDLE" --arg version "$CONTRACT_VERSION" --arg model "$MODEL" --arg openclaw "$OPENCLAW_IMAGE" --arg litellm "$LITELLM_IMAGE" --arg local_image "$LOCAL_IMAGE" --arg image_id "$local_image_id" --arg archive "$local_image_archive_sha256" --arg image_adapter "$local_image_adapter_sha256" --arg first "$remove_first_hash" --arg repeat "$remove_repeat_hash" --argjson image_matches "$local_image_adapter_matches_source" --argjson equal "$remove_hash_equal" --argjson a2 "$g2_apply_exit" --argjson p2 "$g2_probe_exit" --argjson revoked "$revoked_exit" --argjson rejected "$rejection_observed" --argjson remove "$remove_exit" --argjson remover "$remove_repeat_exit" --argjson removed "$managed_config_removed" --argjson config_status "$generated_config_or_status_zero_hit" --argjson runtime "$openclaw_runtime_state_zero_hit" --argjson litellm_log "$litellm_log_zero_hit" --argjson process "$process_arguments_zero_hit" --argjson diff "$git_diff_zero_hit" --argjson image "$local_image_layer_zero_hit" --argjson passed "$post_passed" \
-    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{scan_generated_config_status:"rg-credential-pattern generated-config RuntimeStatus",scan_openclaw_state:"rg-credential-pattern OpenClaw-state",scan_litellm_log:"docker-logs-to-private-temp then rg",scan_process_arguments:"ps-scoped-p2 then rg",scan_git_diff:"git-diff then rg",scan_image_layer:"docker-image-save then rg-a"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove:{first_exit:$remove,repeat_exit:$remover,first_config_sha256:$first,repeat_config_sha256:$repeat,hash_equal:$equal,managed_config_removed:$removed},credential_scan:{generated_config_and_runtime_status_zero_hit:$config_status,openclaw_runtime_state_and_logs_zero_hit:$runtime,litellm_logs_zero_hit:$litellm_log,container_process_arguments_zero_hit:$process,git_diff_zero_hit:$diff,local_image_layers_zero_hit:$image},local_image:{reference:$local_image,image_id:$image_id,archive_sha256:$archive,adapter_sha256:$image_adapter,adapter_matches_source:$image_matches}}}' > "$REPORT"
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:$passed,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},command_templates:{scan_generated_config_status:"rg-credential-pattern generated-config RuntimeStatus",scan_openclaw_state:"rg-credential-pattern OpenClaw-state",scan_litellm_log:"docker-logs-to-private-temp then rg",scan_process_arguments:"ps-scoped-p2 then rg",scan_git_diff:"git-diff then rg",scan_image_layer:"docker-image-save then rg-a"},contract:{version:$version,bundle:$bundle},inputs:{generation_1_secret_parameter:"GENERATION_1_SECRET_FILE",generation_2_secret_parameter:"GENERATION_2_SECRET_FILE",model:$model,openclaw_image:$openclaw,litellm_image:$litellm},checks:{generation_2_reapply_exit:$a2,generation_2_probe_exit:$p2,revoked_generation_1_agent_exit:$revoked,revoked_generation_1_rejection_observed:$rejected,remove:{first_exit:$remove,repeat_exit:$remover,first_config_sha256:$first,repeat_config_sha256:$repeat,hash_equal:$equal,managed_config_removed:$removed},credential_scan:{generated_config_and_runtime_status_zero_hit:$config_status,openclaw_runtime_state_and_logs_zero_hit:$runtime,litellm_logs_zero_hit:$litellm_log,container_process_arguments_zero_hit:$process,git_diff_zero_hit:$diff,local_image_layers_zero_hit:$image},local_image:{reference:$local_image,image_id:$image_id,archive_sha256:$archive,adapter_sha256:$image_adapter,adapter_matches_source:$image_matches}}}' > "$REPORT_TMP" || report_generation_failed=true
 fi
 
+if [ "$report_generation_failed" = true ] || ! jq -e . "$REPORT_TMP" >/dev/null 2>&1; then
+  jq -n --arg stage "$STAGE" --arg commit "$PHASE_COMMIT" --arg adapter_sha "$SOURCE_ADAPTER_SHA256" \
+    '{schema:"labnow-p2-r2-evidence-v2",stage:$stage,passed:false,provenance:{phase_commit:$commit,source_adapter_sha256:$adapter_sha},report_generation_error:true}' > "$REPORT_TMP"
+  if [ "$STAGE" = pre-revoke ]; then pre_passed=false; else post_passed=false; fi
+fi
+jq -e . "$REPORT_TMP" >/dev/null
+mv -f -- "$REPORT_TMP" "$REPORT"
+REPORT_TMP=""
 chmod 0600 "$REPORT"
 report_hash="$(shasum -a 256 "$REPORT" | awk '{print $1}')"
 printf '%s  %s\n' "$report_hash" "$(basename "$REPORT")" > "${REPORT}.sha256"
