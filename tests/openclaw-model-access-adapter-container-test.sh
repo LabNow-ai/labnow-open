@@ -42,6 +42,7 @@ jq -n '{
 run_adapter() {
   docker run --rm --platform linux/amd64 \
     --entrypoint bash \
+    -e OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
     -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
     -v "$ADAPTER:/usr/local/bin/openclaw-model-access-adapter:ro" \
@@ -55,6 +56,7 @@ run_adapter() {
 validate_config() {
   docker run --rm --platform linux/amd64 \
     --entrypoint bash \
+    -e OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
     -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
     -v "$WORK_DIR/status:/run/labnow/model-access" \

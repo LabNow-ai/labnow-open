@@ -1,0 +1,62 @@
+# P6 OpenClaw 产品闭环（本仓记录）
+
+## 状态
+
+- Phase：P6 / CHE-563
+- 本仓状态：开发中；仅完成本地产品入口、路由和镜像级验证。
+- Linear：由总控独占写入；本仓未修改 Linear。
+- 交付方式：`local_only`；未推送分支、镜像或部署。
+
+## 冻结输入
+
+- control/review policy commit：`2eb71d7590739df3de8db2f8cf9098154a397f0b`
+- Phase base：`dfac9767fd6cdd4706ac4cd6917defcafd1c6eb8`
+- 契约：`v1alpha1 / 0.1.0-rc.1`
+- RC1 bundle SHA-256：`d289dff9bcaa3d28035c5ed2e56b806f4b3b37fdca3159352d22f0c03942e202`
+- 固定 OpenClaw 基镜像：`quay.io/labnow/openclaw@sha256:edc85cc2068f5ec0df470f7d06daa0a4fbd78ef5ad6cf5b48f58381da839dd12`
+
+## 本仓差异
+
+- 将 OpenClaw CLI/Gateway 的 `OPENCLAW_CONFIG` 对齐到 Adapter 管理的 `/root/.openclaw/data/openclaw.json`。
+- 增加 `start-labnow-openclaw.sh`：仅设置缺失的 `gateway.controlUi.basePath`，保留已有用户 provider、agent 默认模型和 Gateway 设置；冲突路径失败关闭，不覆盖用户选择。
+- Supervisor 启动实际存在的 OpenClaw Gateway 脚本，并固定 loopback `18789` 与 `autostart=true`。
+- 增加 `${URL_PREFIX}openclaw/` 的 Caddy 代理和 `${URL_PREFIX}api` readiness 代理；OpenClaw 保留完整 workspace 前缀以匹配 Control UI base path。
+- Console 增加 `openclaw` 程序卡片和 `/openclaw/` 跳转。
+- 独立 Adapter 容器测试显式使用与 Adapter 相同的 OpenClaw 配置路径。
+
+未改变 RC1 公共字段、RuntimeManifest/RuntimeSecretFile/RuntimeStatus 固定路径、Adapter 动作集合或模型受管命名空间；未引入 Hermes。
+
+## 本地验证
+
+以下命令在 Phase 工作树运行，均未传入真实 RuntimeSecretFile：
+
+```bash
+bash -n src/labnow-open-etc/openclaw-model-access-adapter.sh \
+  src/labnow-open-etc/start-labnow-openclaw.sh \
+  tests/openclaw-model-access-adapter-test.sh \
+  tests/openclaw-model-access-adapter-container-test.sh \
+  tests/openclaw-product-closure-container-test.sh
+
+OPENCLAW_IMAGE=quay.io/labnow/openclaw@sha256:edc85cc2068f5ec0df470f7d06daa0a4fbd78ef5ad6cf5b48f58381da839dd12 \
+  bash tests/openclaw-model-access-adapter-container-test.sh
+
+LOCAL_IMAGE=quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local \
+  bash tests/openclaw-product-closure-container-test.sh
+```
+
+结果：Adapter host/container 回归通过；本地镜像中的 OpenClaw Supervisor 为 Running，`/user/p6/openclaw/` 与 `/user/p6/api` 均返回 `200`；用户 provider/default model/Gateway mode 保留，Control UI base path 为 `/user/p6/openclaw`。
+
+本地镜像仅构建未推送：
+
+```text
+quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local
+image id/repository digest: sha256:79fbe459040bc10cb8a64934fa608d7cd23ac4b0472e7c7690db294ad54ffbb7
+```
+
+失败关闭验证：相对 `URL_PREFIX` 退出 `64`；冲突的 `gateway.controlUi.basePath` 退出 `72`；Caddy validate 退出 `0`。
+
+## 安全与待完成验证
+
+- 本次 diff、镜像层、镜像 Config 与 P6 临时容器残留均执行了不输出匹配正文的 credential pattern 扫描，结果零命中；扫描命令退出码分别为 `1`、`1`、`1`，临时容器残留为零。
+- 本地构建与测试没有使用、记录或保留 RuntimeSecretFile、模型 key、Authorization header 或控制面凭证。
+- P6-MUST-03/04/07/08 的真实跨仓 claim→apply/probe→activate、chat/stream/tool、撤销/清理和聚合证据仍须由 `lab-dev` 黄金 runner 使用本轮短期运行材料完成。材料只能经挂载文件或环境安全传递，本仓不得记录其路径或内容。

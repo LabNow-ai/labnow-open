@@ -61,6 +61,19 @@
     redir @path_user_rshiny_no_slash {path}/ 308  # Redirect paths ending in "rshiny" to "rshiny/"
 
 
+    # OpenClaw keeps the workspace prefix so its configured controlUi.basePath
+    # and websocket endpoints remain in the same namespace.
+    @path_user_openclaw_no_slash path_regexp ^{$URL_PREFIX:}openclaw$
+    redir @path_user_openclaw_no_slash {path}/ 308
+
+    @path_user_openclaw path_regexp ^{$URL_PREFIX:}openclaw/.*$
+    handle @path_user_openclaw {
+        reverse_proxy 127.0.0.1:18789 {
+            header_up X-Forwarded-Prefix {$URL_PREFIX:}openclaw
+        }
+    }
+
+
     @path_user_hermes_no_slash path_regexp ^{$URL_PREFIX:}hermes$
     redir @path_user_hermes_no_slash {path}/ 308
 

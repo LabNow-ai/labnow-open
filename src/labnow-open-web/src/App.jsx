@@ -62,6 +62,13 @@ const PROGRAM_DEFINITIONS = {
     description:
       "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
   },
+  openclaw: {
+    displayName: "OpenClaw",
+    link: "/openclaw/",
+    logo: "logo-openclaw.svg",
+    description:
+      "A managed agent workspace with model access supplied through the LabNow runtime.",
+  },
   "hermes-gateway": {
     displayName: "Hermes Gateway",
     hidden: true,

@@ -9,7 +9,6 @@ FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS builder
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
-
 COPY ./src/labnow-open-web /tmp/labnow-open-web
 COPY ./src/labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
@@ -25,6 +24,9 @@ FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS runtime
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
+# Keep the OpenClaw CLI, the Gateway and the LabNow adapter on the same
+# workspace-local configuration file. The adapter only stores a file SecretRef.
+ENV OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
@@ -36,6 +38,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && mkdir -pv /etc/caddy /etc/caddy/enabled-routes && ln -sf /opt/labnow-open/etc/Caddyfile /etc/caddy/ \
  && chmod +x /opt/labnow-open/etc/openclaw-model-access-adapter.sh \
  && ln -sf /opt/labnow-open/etc/openclaw-model-access-adapter.sh /usr/local/bin/openclaw-model-access-adapter \
+ && chmod +x /opt/labnow-open/etc/start-labnow-openclaw.sh \
+ && ln -sf /opt/labnow-open/etc/start-labnow-openclaw.sh /usr/local/bin/start-labnow-openclaw.sh \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
  && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
@@ -44,7 +48,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type code-server  && printf "[program:vscode]\ncommand=/usr/local/bin/start-code-server.sh\n"  >> /etc/supervisord/supervisord.conf || true) \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || true) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
- && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || true) \
+ && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-labnow-openclaw.sh\nautostart=true\n"   >> /etc/supervisord/supervisord.conf || true) \
+ && (type openclaw     && ln -sf /opt/labnow-open/etc/routes/openclaw-readiness.caddy /etc/caddy/enabled-routes/openclaw-readiness.caddy || true) \
  && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type hermes       && ln -sf /opt/labnow-open/etc/routes/hermes-readiness.caddy /etc/caddy/enabled-routes/hermes-readiness.caddy || true) \
  # cleanup of any temporary or cache files to keep the image size down
