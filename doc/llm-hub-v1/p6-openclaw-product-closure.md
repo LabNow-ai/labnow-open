@@ -20,6 +20,7 @@
 - 将 OpenClaw CLI/Gateway/Adapter 的 `OPENCLAW_CONFIG` 与 `OPENCLAW_CONFIG_PATH` 对齐到
   `/root/.openclaw/data/openclaw.json`。
 - 增加 `start-labnow-openclaw.sh`：仅设置缺失的 `gateway.controlUi.basePath`，保留已有用户 provider、agent 默认模型和 Gateway 设置；冲突路径失败关闭，不覆盖用户选择。
+- 新 Workspace 缺失 `tools.allow` 时只启用 P6 冻结工具 smoke 所需的 `exec`；已有用户工具白名单保持不变，避免默认暴露的额外工具让固定 smoke 漂移为非目标工具链。
 - Supervisor 启动实际存在的 OpenClaw Gateway 脚本，并固定 loopback `18789` 与 `autostart=true`。
 - 增加 `${URL_PREFIX}openclaw/` 的 Caddy 代理和 `${URL_PREFIX}api` readiness 代理；OpenClaw 保留完整 workspace 前缀以匹配 Control UI base path。
 - Console 增加 `openclaw` 程序卡片和 `/openclaw/` 跳转。
@@ -51,7 +52,7 @@ LOCAL_IMAGE=quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local \
 结果：Adapter host/container 回归通过；本地镜像中的 OpenClaw Supervisor 为 Running，独立
 OpenClaw CLI 继承固定的配置路径且 `config validate` 通过，`/user/p6/openclaw/` 与
 `/user/p6/api` 均返回 `200`；用户 provider/default model/Gateway mode 保留，Control UI
-base path 为 `/user/p6/openclaw`。
+base path 为 `/user/p6/openclaw`，新 Workspace 默认工具白名单为 `exec`。
 
 本地镜像仅构建未推送：
 

@@ -54,6 +54,8 @@ configure_control_ui_base_path() {
       if . == null then {} elif type == "object" then . else error("expected object") end;
     .gateway = (.gateway | object_or_empty)
     | .gateway.controlUi = (.gateway.controlUi | object_or_empty)
+    | .tools = (.tools | object_or_empty)
+    | if .tools.allow == null then .tools.allow = ["exec"] else . end
     | if .gateway.controlUi.basePath == null then
         .gateway.controlUi.basePath = $base_path
       elif .gateway.controlUi.basePath == $base_path then

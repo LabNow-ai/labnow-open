@@ -66,6 +66,7 @@ jq -e '
   and .agents.defaults.model == "user/model"
   and .gateway.mode == "local"
   and .gateway.controlUi.basePath == "/user/p6/openclaw"
+  and .tools.allow == ["exec"]
 ' "$WORK_DIR/data/openclaw.json" >/dev/null || fail "gateway rendering did not preserve user config"
 
 if rg -q --fixed-strings 'api_key' "$WORK_DIR/data/openclaw.json"; then
