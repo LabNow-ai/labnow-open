@@ -58,7 +58,7 @@ base path 为 `/user/p6/openclaw`，新 Workspace 默认工具白名单为 `exec
 
 ```text
 quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local
-image id: sha256:9fc2d2c2867b742c37c10ab7c44a60f566b9d6c3d09f364f05de2a45f3d142e2
+image id: sha256:c9c6a45637521cbbaeacea57fbb128696066fd91c5dff4521555f1bd5211f244
 ```
 
 失败关闭验证：相对 `URL_PREFIX` 退出 `64`；冲突的 `gateway.controlUi.basePath` 退出 `72`；Caddy validate 退出 `0`。
