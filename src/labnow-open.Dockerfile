@@ -28,6 +28,8 @@ ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 # workspace-local configuration file. The adapter only stores a file SecretRef.
 ENV OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
     OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json
+# Hermes merges this private managed scope over user-owned ~/.hermes/config.yaml.
+ENV HERMES_MANAGED_DIR=/root/.hermes/labnow-model-access
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
@@ -41,6 +43,10 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && ln -sf /opt/labnow-open/etc/openclaw-model-access-adapter.sh /usr/local/bin/openclaw-model-access-adapter \
  && chmod +x /opt/labnow-open/etc/start-labnow-openclaw.sh \
  && ln -sf /opt/labnow-open/etc/start-labnow-openclaw.sh /usr/local/bin/start-labnow-openclaw.sh \
+ && chmod +x /opt/labnow-open/etc/hermes-model-access-adapter.sh \
+ && ln -sf /opt/labnow-open/etc/hermes-model-access-adapter.sh /usr/local/bin/hermes-model-access-adapter \
+ && chmod +x /opt/labnow-open/etc/start-labnow-hermes.sh \
+ && ln -sf /opt/labnow-open/etc/start-labnow-hermes.sh /usr/local/bin/start-labnow-hermes.sh \
  && ([ ! -f /usr/local/bin/start-supervisord.sh ] && printf '#!/bin/bash\nLOG_FORMAT=json exec supervisord -c /etc/supervisord/supervisord.conf\n' > /usr/local/bin/start-supervisord.sh || true ) \
  && ([ ! -f /usr/local/bin/start-caddy.sh ] && printf '#!/bin/bash\ncaddy run --config /etc/caddy/Caddyfile\n' > /usr/local/bin/start-caddy.sh || true ) \
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
@@ -51,7 +57,7 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-labnow-openclaw.sh\nautostart=true\n"   >> /etc/supervisord/supervisord.conf || true) \
  && (type openclaw     && ln -sf /opt/labnow-open/etc/routes/openclaw-readiness.caddy /etc/caddy/enabled-routes/openclaw-readiness.caddy || true) \
- && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
+ && (type hermes       && printf "[program:hermes-gateway]\ncommand=/usr/local/bin/start-labnow-hermes.sh gateway\nautostart=true\n\n[program:hermes-dashboard]\ncommand=/usr/local/bin/start-labnow-hermes.sh dashboard --host 127.0.0.1 --port 9119 --no-open\nautostart=true\n" >> /etc/supervisord/supervisord.conf || true) \
  && (type hermes       && ln -sf /opt/labnow-open/etc/routes/hermes-readiness.caddy /etc/caddy/enabled-routes/hermes-readiness.caddy || true) \
  # cleanup of any temporary or cache files to keep the image size down
  && rm -rf /opt/conda/share/jupyter/lab/staging \
