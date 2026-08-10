@@ -44,16 +44,17 @@ run_adapter() {
     --entrypoint bash \
     -e OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
-    -e OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json \
     -v "$ADAPTER:/usr/local/bin/openclaw-model-access-adapter:ro" \
     -v "$WORK_DIR/status:/run/labnow/model-access" \
     -v "$WORK_DIR/runtime/manifest.json:/run/labnow/model-access/manifest.json:ro" \
     -v "$WORK_DIR/runtime/secret.json:/run/labnow/model-access/secret.json:ro" \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
-    "$OPENCLAW_IMAGE" -lc "openclaw-model-access-adapter $1"
+    "$OPENCLAW_IMAGE" -lc "env -u OPENCLAW_CONFIG_PATH openclaw-model-access-adapter $1"
 }
 
 validate_config() {
+  # This direct OpenClaw schema check needs the upstream CLI path variable.
+  # run_adapter explicitly unsets it so Adapter probe covers the regression.
   docker run --rm --platform linux/amd64 \
     --entrypoint bash \
     -e OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \

@@ -243,7 +243,7 @@ probe() {
   ensure_config_parent
   ensure_config_object
   jq -e '.models.providers.labnow? and .secrets.providers["labnow-runtime"]?' "$OPENCLAW_CONFIG_PATH" >/dev/null || die "MANAGED_CONFIG_MISSING" 71
-  "$OPENCLAW_BIN" config validate >/dev/null 2>&1 || die "OPENCLAW_CONFIG_INVALID" 70
+  OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" "$OPENCLAW_BIN" config validate >/dev/null 2>&1 || die "OPENCLAW_CONFIG_INVALID" 70
   write_status "ready"
 }
 

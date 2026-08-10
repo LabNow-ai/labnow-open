@@ -22,7 +22,10 @@
 - Supervisor 启动实际存在的 OpenClaw Gateway 脚本，并固定 loopback `18789` 与 `autostart=true`。
 - 增加 `${URL_PREFIX}openclaw/` 的 Caddy 代理和 `${URL_PREFIX}api` readiness 代理；OpenClaw 保留完整 workspace 前缀以匹配 Control UI base path。
 - Console 增加 `openclaw` 程序卡片和 `/openclaw/` 跳转。
-- 独立 Adapter 容器测试显式使用与 Adapter 相同的 OpenClaw 配置路径。
+- `probe` 向 OpenClaw CLI 显式传递其已解析的 `OPENCLAW_CONFIG_PATH`，使镜像只
+  预设 `OPENCLAW_CONFIG` 时仍验证与 `apply` 相同的受管配置。
+- 独立 Adapter 容器回归刻意以 `env -u OPENCLAW_CONFIG_PATH` 调用 Adapter，仍确认
+  `probe` 通过，避免镜像环境变量掩盖路径传递问题。
 
 未改变 RC1 公共字段、RuntimeManifest/RuntimeSecretFile/RuntimeStatus 固定路径、Adapter 动作集合或模型受管命名空间；未引入 Hermes。
 
