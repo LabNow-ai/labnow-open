@@ -16,6 +16,8 @@ image_id="$(docker image inspect --format '{{.Id}}' "$LOCAL_IMAGE")" || fail "lo
 mkdir -p "$WORK_DIR/runtime" "$WORK_DIR/status" "$WORK_DIR/hermes" "$WORK_DIR/bin"
 touch "$WORK_DIR/start-result"
 chmod 0600 "$WORK_DIR/start-result"
+touch "$WORK_DIR/status/manifest.json" "$WORK_DIR/status/secret.json"
+chmod 0600 "$WORK_DIR/status/manifest.json" "$WORK_DIR/status/secret.json"
 cp "$FIXTURES/valid/runtime-manifest.json" "$WORK_DIR/runtime/manifest.json"
 jq '.adapter_id = "hermes"' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.hermes.json"
 mv "$WORK_DIR/runtime/manifest.hermes.json" "$WORK_DIR/runtime/manifest.json"

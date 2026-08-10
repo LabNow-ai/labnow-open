@@ -1,11 +1,14 @@
 # Use the existing image as the base
 ARG BASE_NAMESPACE="quay.io"
 ARG BASE_IMG="labnow/developer:latest"
+ARG NODE_BUILD_IMG="labnow/node@sha256:fd09d9de9b7aa927493acbafbb7d399c089465e988f2a6a240428cdbbd5424e2"
 
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
-FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS builder
+# Hermes is intentionally a lean runtime. Keep the Web build on the frozen
+# Node build base instead of requiring a Node toolchain in the Hermes image.
+FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${NODE_BUILD_IMG} AS builder
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
@@ -13,7 +16,8 @@ COPY ./src/labnow-open-web /tmp/labnow-open-web
 COPY ./src/labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
- && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
+ # The frozen Node build base installs pnpm 10 as a standalone binary.
+ && source /opt/utils/script-setup-core.sh && setup_node_pnpm 10 \
  && cd /tmp/labnow-open-web \
  && export CI=true && pnpm install --no-strict-peer-dependencies && pnpm run build \
  && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \

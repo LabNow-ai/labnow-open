@@ -13,6 +13,8 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 mkdir -p "$WORK_DIR/runtime" "$WORK_DIR/status" "$WORK_DIR/hermes"
+touch "$WORK_DIR/status/manifest.json" "$WORK_DIR/status/secret.json"
+chmod 0600 "$WORK_DIR/status/manifest.json" "$WORK_DIR/status/secret.json"
 cp "$FIXTURES/valid/runtime-manifest.json" "$WORK_DIR/runtime/manifest.json"
 jq '.adapter_id = "hermes"' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.hermes.json"
 mv "$WORK_DIR/runtime/manifest.hermes.json" "$WORK_DIR/runtime/manifest.json"
