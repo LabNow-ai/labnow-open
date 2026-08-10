@@ -41,6 +41,14 @@ HERMES_IMAGE=quay.io/labnow/hermes@sha256:<digest> \
 
 历史 `quay.io/labnow/hermes:local` 仅用于确认上游配置格式，不能作为 P7 镜像、容器或真实 smoke 证据。最终本地产品镜像会使用 `quay.io/labnow/labnow-open:che-568-hermes-console-experience-local`，只在收到 Dev 固定的 Hermes 基础 digest 后构建；不推送、不发布、不部署。
 
-## 待完成的固定组合验证
+## 固定本地组合验证
 
-当前等待 Dev 提供 Hermes 上游 commit、不可变基础镜像 digest 与本地可复查来源。取得后需要重建本地产品镜像，运行固定基础镜像 container test、产品容器回归及受影响真实黄金链；证据只记录脱敏摘要、镜像/报告 hash 与清理结果。
+- Hermes 上游来源：`https://github.com/Mushroom47/hermes-agent.git@1388cd1c0c1800078bfcc92aebd144fbf145fdb4`。
+- Hermes 基础镜像：`quay.io/labnow/hermes@sha256:c47cf16fad3fbb952a616c910fe3c7769e8516a15986db182752091e1ec02d67`（linux/amd64）。
+- Web build base：`quay.io/labnow/node@sha256:fd09d9de9b7aa927493acbafbb7d399c089465e988f2a6a240428cdbbd5424e2`。
+- 本地产品镜像：`quay.io/labnow/labnow-open:che-568-hermes-console-experience-local`，image ID/RepoDigest：`sha256:56e69ace0da9dbede193e80904fa76ded1dd94cfc38cb1137f6df686c5b7f031`。
+- Renderer commit：`b17e02cdcf752dd6a2177f21d5489f9698334221`；固定基础镜像构建与挂载点兼容修复：`8c56966c4b6be12702d4397aad6b1a153b87d053`。
+
+固定 Hermes 基础镜像 container test、产品镜像内 Adapter/wrapper/probe/generation/remove 回归、OpenClaw 固定镜像回归、Web build 和敏感信息扫描均通过。扫描覆盖 Git diff、产品镜像 Config/history/layers 与 Docker 进程参数；每项均为 `command_exit=0`、`scan_exit=1`、`zero_hit=true`，无关联测试容器残留。详细的脱敏命令与结果见本仓 evidence。
+
+本仓容器层已具备 `ready_for_integration` 条件；P7 参数化真实黄金链（Console、claim/activate、实际 Hermes 调用、usage、revoke/cleanup）仍由总控与 Dev/Shell 固定组合执行。本仓未推送镜像、未发布、未部署。
