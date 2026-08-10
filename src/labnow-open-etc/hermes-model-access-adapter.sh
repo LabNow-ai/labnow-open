@@ -105,7 +105,7 @@ validate_manifest() {
     and (.generation | type == "number" and floor == . and . >= 1)
     and (.base_url | type == "string" and length <= 2048 and test("^https?://[^[:space:]]+$"))
     and (.api_key_file == "/run/labnow/model-access/secret.json")
-    and (.expires_at | type == "string" and (try fromdateiso8601 catch null) != null)
+    and (.expires_at | type == "string" and (try (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) catch null) != null)
     and (.allowed_models | type == "array" and length > 0 and unique == . and all(.[]; type == "string" and length >= 1 and length <= 256 and test("^[^[:space:]]+$")))
     and (.default_model as $default_model | ($default_model | type == "string" and length >= 1 and length <= 256 and test("^[^[:space:]]+$")) and (.allowed_models | index($default_model) != null))
   ' "$MANIFEST_PATH" >/dev/null || die "INVALID_MANIFEST" 67

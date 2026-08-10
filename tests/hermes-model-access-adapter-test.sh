@@ -35,7 +35,7 @@ run_adapter() {
 
 mkdir -p "$WORK_DIR/runtime" "$WORK_DIR/hermes"
 cp "$FIXTURES/valid/runtime-manifest.json" "$WORK_DIR/runtime/manifest.json"
-jq '.adapter_id = "hermes"' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.hermes.json"
+jq '.adapter_id = "hermes" | .expires_at = "2099-01-01T00:00:00.123Z"' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.hermes.json"
 mv "$WORK_DIR/runtime/manifest.hermes.json" "$WORK_DIR/runtime/manifest.json"
 cp "$FIXTURES/valid/runtime-secret-file.json" "$WORK_DIR/runtime/secret.json"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
