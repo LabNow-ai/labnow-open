@@ -17,7 +17,8 @@
 
 ## 本仓差异
 
-- 将 OpenClaw CLI/Gateway 的 `OPENCLAW_CONFIG` 对齐到 Adapter 管理的 `/root/.openclaw/data/openclaw.json`。
+- 将 OpenClaw CLI/Gateway/Adapter 的 `OPENCLAW_CONFIG` 与 `OPENCLAW_CONFIG_PATH` 对齐到
+  `/root/.openclaw/data/openclaw.json`。
 - 增加 `start-labnow-openclaw.sh`：仅设置缺失的 `gateway.controlUi.basePath`，保留已有用户 provider、agent 默认模型和 Gateway 设置；冲突路径失败关闭，不覆盖用户选择。
 - Supervisor 启动实际存在的 OpenClaw Gateway 脚本，并固定 loopback `18789` 与 `autostart=true`。
 - 增加 `${URL_PREFIX}openclaw/` 的 Caddy 代理和 `${URL_PREFIX}api` readiness 代理；OpenClaw 保留完整 workspace 前缀以匹配 Control UI base path。
@@ -47,13 +48,16 @@ LOCAL_IMAGE=quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local \
   bash tests/openclaw-product-closure-container-test.sh
 ```
 
-结果：Adapter host/container 回归通过；本地镜像中的 OpenClaw Supervisor 为 Running，`/user/p6/openclaw/` 与 `/user/p6/api` 均返回 `200`；用户 provider/default model/Gateway mode 保留，Control UI base path 为 `/user/p6/openclaw`。
+结果：Adapter host/container 回归通过；本地镜像中的 OpenClaw Supervisor 为 Running，独立
+OpenClaw CLI 继承固定的配置路径且 `config validate` 通过，`/user/p6/openclaw/` 与
+`/user/p6/api` 均返回 `200`；用户 provider/default model/Gateway mode 保留，Control UI
+base path 为 `/user/p6/openclaw`。
 
 本地镜像仅构建未推送：
 
 ```text
 quay.io/labnow/labnow-open:che-563-openclaw-product-closure-local
-image id/repository digest: sha256:79fbe459040bc10cb8a64934fa608d7cd23ac4b0472e7c7690db294ad54ffbb7
+image id: sha256:e1cc3f1e97e76764555f2fdc16e2eb1c631a7d23b0691cdd3c324f7ab67ec980
 ```
 
 失败关闭验证：相对 `URL_PREFIX` 退出 `64`；冲突的 `gateway.controlUi.basePath` 退出 `72`；Caddy validate 退出 `0`。

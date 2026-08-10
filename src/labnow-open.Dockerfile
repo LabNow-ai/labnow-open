@@ -26,7 +26,8 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 # Keep the OpenClaw CLI, the Gateway and the LabNow adapter on the same
 # workspace-local configuration file. The adapter only stores a file SecretRef.
-ENV OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json
+ENV OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
+    OPENCLAW_CONFIG_PATH=/root/.openclaw/data/openclaw.json
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 

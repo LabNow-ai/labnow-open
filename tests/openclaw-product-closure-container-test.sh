@@ -19,7 +19,7 @@ fail() {
 }
 
 mkdir -p "$WORK_DIR/data"
-printf '%s\n' '{"models":{"providers":{"user":{"baseUrl":"https://user.example.invalid"}}},"gateway":{"mode":"local"},"agents":{"defaults":{"model":"user/model"}}}' > "$WORK_DIR/data/openclaw.json"
+printf '%s\n' '{"models":{"providers":{"user":{"baseUrl":"https://user.example.invalid","models":[]}}},"gateway":{"mode":"local"},"agents":{"defaults":{"model":"user/model"}}}' > "$WORK_DIR/data/openclaw.json"
 chmod 0600 "$WORK_DIR/data/openclaw.json"
 
 docker run --rm -d --platform linux/amd64 --name "$CONTAINER_NAME" \
@@ -39,6 +39,14 @@ case "$(printf '%s' "$gateway_status" | tr '[:lower:]' '[:upper:]')" in
   *RUNNING*) ;;
   *) fail "openclaw supervisor program did not reach RUNNING" ;;
 esac
+
+# This is an independent CLI process, not the Adapter probe. It inherits only
+# the image runtime environment and must resolve the shared workspace config.
+docker exec "$CONTAINER_NAME" bash -lc '
+  [ "$OPENCLAW_CONFIG" = /root/.openclaw/data/openclaw.json ]
+  [ "$OPENCLAW_CONFIG_PATH" = /root/.openclaw/data/openclaw.json ]
+  openclaw config validate >/dev/null
+' || fail "independent OpenClaw CLI did not inherit the shared config path"
 
 wait_for_route() {
   local path="$1" status=000
