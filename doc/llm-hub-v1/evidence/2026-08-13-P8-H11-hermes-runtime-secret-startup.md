@@ -61,4 +61,4 @@ credential 模式扫描不回显匹配内容：Git 差异、产品镜像 `inspec
 
 ## Handoff
 
-`ready_for_review`：本仓最小修复、容器回归与零明文扫描完成；等待总控以固定跨仓组合执行真实 Dashboard 首条消息验证和最终复审。 
+`ready_for_review`：本仓最小修复、容器回归与零明文扫描完成；等待总控以固定跨仓组合执行真实 Dashboard 首条消息验证和最终复审。
