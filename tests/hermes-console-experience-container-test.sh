@@ -48,6 +48,9 @@ run_in_image() {
 expected_adapter_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/hermes-model-access-adapter.sh" | awk '{print $1}')"
 image_adapter_sha="$(run_in_image 'sha256sum /usr/local/bin/hermes-model-access-adapter | awk "{print \$1}"')"
 [ "$image_adapter_sha" = "$expected_adapter_sha" ] || fail "image adapter does not match source"
+expected_starter_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/start-labnow-hermes.sh" | awk '{print $1}')"
+image_starter_sha="$(run_in_image 'sha256sum /usr/local/bin/start-labnow-hermes.sh | awk "{print \$1}"')"
+[ "$image_starter_sha" = "$expected_starter_sha" ] || fail "image Hermes starter does not match source"
 run_in_image 'test "$HERMES_MANAGED_DIR" = /root/.hermes/labnow-model-access'
 
 run_in_image 'hermes-model-access-adapter apply'
