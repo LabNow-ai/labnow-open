@@ -48,7 +48,7 @@ if rg -n --fixed-strings 'test-secret-not-valid' "$WORK_DIR/hermes" "$WORK_DIR/s
 jq '.generation = 2' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.next.json"
 mv "$WORK_DIR/runtime/manifest.next.json" "$WORK_DIR/runtime/manifest.json"
 jq '.generation = 2' "$WORK_DIR/runtime/secret.json" > "$WORK_DIR/runtime/secret.next.json"
-mv "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
+mv -f "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
 run_adapter apply
 run_adapter probe

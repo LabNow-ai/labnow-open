@@ -66,7 +66,7 @@ if rg -n --fixed-strings 'test-secret-not-valid' "$WORK_DIR/hermes/labnow-model-
 jq '.generation = 2' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.next.json"
 mv "$WORK_DIR/runtime/manifest.next.json" "$WORK_DIR/runtime/manifest.json"
 jq '.generation = 2' "$WORK_DIR/runtime/secret.json" > "$WORK_DIR/runtime/secret.next.json"
-mv "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
+mv -f "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
 run_adapter apply
 assert_runtime_status applied 2
@@ -110,7 +110,7 @@ cp "$FIXTURES/valid/runtime-manifest.json" "$WORK_DIR/runtime/manifest.json"
 jq '.adapter_id = "hermes"' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.hermes.json"
 mv "$WORK_DIR/runtime/manifest.hermes.json" "$WORK_DIR/runtime/manifest.json"
 jq '.generation = 1' "$WORK_DIR/runtime/secret.json" > "$WORK_DIR/runtime/secret.reset.json"
-mv "$WORK_DIR/runtime/secret.reset.json" "$WORK_DIR/runtime/secret.json"
+mv -f "$WORK_DIR/runtime/secret.reset.json" "$WORK_DIR/runtime/secret.json"
 chmod 0600 "$WORK_DIR/runtime/secret.json"
 set +e
 run_adapter apply >/dev/null 2>&1
@@ -119,7 +119,7 @@ set -e
 [ "$mode_exit" = 65 ] || fail "secret mode error code: $mode_exit"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
 jq '.binding_id = "wrong-binding"' "$WORK_DIR/runtime/secret.json" > "$WORK_DIR/runtime/secret.next.json"
-mv "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
+mv -f "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
 set +e
 run_adapter apply >/dev/null 2>&1

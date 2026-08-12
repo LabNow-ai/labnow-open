@@ -52,6 +52,14 @@ expected_starter_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/start-labnow-h
 image_starter_sha="$(run_in_image 'sha256sum /usr/local/bin/start-labnow-hermes.sh | awk "{print \$1}"')"
 [ "$image_starter_sha" = "$expected_starter_sha" ] || fail "image Hermes starter does not match source"
 run_in_image 'test "$HERMES_MANAGED_DIR" = /root/.hermes/labnow-model-access'
+# Hermes TUI uses node and npm at runtime. They must be supplied by the fixed
+# image, never first-use downloaded into the mounted Workspace home.
+run_in_image 'node --version >/dev/null && npm --version >/dev/null'
+run_in_image 'test ! -e /root/.hermes/node'
+# This is the same node-resolution path used by `hermes --tui`, without
+# starting an interactive TUI process that could outlive a non-TTY test shell.
+run_in_image 'HERMES_SKIP_NODE_BOOTSTRAP=1 python3 -c "from hermes_cli.main import _make_tui_argv; from pathlib import Path; argv, _ = _make_tui_argv(Path(\"/opt/hermes/ui-tui\"), False); assert argv[0].endswith(\"node\")"'
+run_in_image 'test ! -e /root/.hermes/node'
 
 run_in_image 'hermes-model-access-adapter apply'
 run_in_image 'hermes-model-access-adapter probe'
@@ -78,7 +86,7 @@ jq -e '.started == true' "$WORK_DIR/start-result" >/dev/null || fail "managed st
 jq '.generation = 2' "$WORK_DIR/runtime/manifest.json" > "$WORK_DIR/runtime/manifest.next.json"
 mv "$WORK_DIR/runtime/manifest.next.json" "$WORK_DIR/runtime/manifest.json"
 jq '.generation = 2' "$WORK_DIR/runtime/secret.json" > "$WORK_DIR/runtime/secret.next.json"
-mv "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
+mv -f "$WORK_DIR/runtime/secret.next.json" "$WORK_DIR/runtime/secret.json"
 chmod 0400 "$WORK_DIR/runtime/secret.json"
 run_in_image 'hermes-model-access-adapter apply'
 run_in_image 'hermes-model-access-adapter probe'

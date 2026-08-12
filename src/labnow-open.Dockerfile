@@ -6,8 +6,9 @@ ARG NODE_BUILD_IMG="labnow/node@sha256:fd09d9de9b7aa927493acbafbb7d399c089465e98
 # this ENV will be used in /opt/utils/script-localize.sh
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
-# Hermes is intentionally a lean runtime. Keep the Web build on the frozen
-# Node build base instead of requiring a Node toolchain in the Hermes image.
+# The frozen Node image supplies both the Web build and the Hermes TUI runtime.
+# Hermes accepts a modern PATH Node; keeping it in the image avoids an unsafe
+# first-use download/extraction into the Workspace persistent volume.
 FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${NODE_BUILD_IMG} AS builder
 ARG PROFILE_LOCALIZE="aliyun-pub"
 
@@ -66,6 +67,11 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  # cleanup of any temporary or cache files to keep the image size down
  && rm -rf /opt/conda/share/jupyter/lab/staging \
  && source /opt/utils/script-utils.sh && install__clean
+
+# Keep this after the product setup layer so the fixed Node runtime does not
+# re-run unrelated network installation steps during a Hermes-only rebuild.
+COPY --from=builder /opt/node/ /opt/node/
+ENV PATH=/opt/node/bin:${PATH}
 
 WORKDIR $HOME_DIR
 ENV STATIC_DIR=/opt/labnow-open/web
