@@ -7,6 +7,7 @@
 - Phase base：`18b20aa7fa3e506b9c85b88736c9f51f317d55d8`。
 - Phase branch：`dev/che-589-hermes-runtime-secret-startup`。
 - 本轮代码 commit：`f9b315af576c147041cc9dd741b77b8966d28bb7`；父提交为准确 Phase base。
+- H11 Node runtime 直接影响修复 commit：`c5cfa2f8caec63af8048ecf72be3fd18d7a5e652`；父提交为 `9e592127da6358048bd83aa7ca160a6488f7ef66`。
 - 契约：`v1alpha1 / 0.1.0-rc.1`；本轮没有修改公共字段、Shell、Launcher、LiteLLM 或其他仓库。
 - 代码差异 SHA-256：`9f67f7ed22bc4b57275bdea53018b5184dc0d8f62b32bb7b3b390771695ac6b9`。
 
@@ -27,12 +28,17 @@ Supervisor 重启策略处理。错误信息只含稳定错误码，不含输入
   - 覆盖 Gateway、Dashboard、TUI 的受管启动，冷启动延迟材料、同代状态、受管超时失败关闭、后续重启恢复和无 Manifest 的非受管路径。
 - `tests/hermes-console-experience-container-test.sh`
   - 除已有 Adapter hash 外，增加产品镜像内 Hermes 启动包装器与当前源码 SHA-256 一致性断言。
+  - 验证运行时 `node`、`npm` 与 Hermes TUI 的 Node 解析路径可用，且挂载的 Hermes home 不会出现首次启动下载的 `node/` 目录。
+- `src/labnow-open.Dockerfile`
+  - 将既有固定 `quay.io/labnow/node@sha256:fd09…` builder 中的 `/opt/node` 放入 Hermes runtime 的 `PATH`；避免 TUI 首次启动向 Workspace 持久卷下载并解压 Node。
+- `tests/hermes-model-access-adapter-test.sh`、`tests/hermes-model-access-adapter-container-test.sh`
+  - 对只读 `0400` 合成 Secret 的 generation fixture 替换使用 `mv -f`，防止 TTY 验证出现交互式覆盖提示；不改变产品 Secret 文件语义。
 
 ## 固定本地镜像
 
 - 基础镜像：`quay.io/labnow/hermes@sha256:c47cf16fad3fbb952a616c910fe3c7769e8516a15986db182752091e1ec02d67`。
 - 本地产品镜像：`quay.io/labnow/labnow-open:che-589-hermes-runtime-secret-startup-local`。
-- 产品镜像 image ID / 本地 RepoDigest：`sha256:193e36bbb07bd4fafac3d4cbcc3813a7232794169966990323560d73d4047fd9`。
+- 产品镜像 image ID / 本地 RepoDigest：`sha256:9b8b595eb76c295ddc15aec45e8e439345280e19c58377c9243d5c00e1e98f17`。
 - 仅本地构建；未推送镜像、未发布、未部署。
 
 ## 脱敏验证结果
@@ -44,7 +50,7 @@ Supervisor 重启策略处理。错误信息只含稳定错误码，不含输入
 | `bash tests/start-labnow-hermes-test.sh` | `0` | 三个消费者经同一包装器获得受管环境；冷启动等待、超时失败关闭、重启恢复和非受管路径通过。 |
 | `HERMES_IMAGE=quay.io/labnow/hermes@sha256:… bash tests/hermes-model-access-adapter-container-test.sh` | `0` | 固定 Hermes 基础镜像内 Adapter apply/probe、generation 2 和 remove 通过。 |
 | `docker build --platform linux/amd64 …` | `0` | 用固定 Hermes digest 构建本地产品镜像。 |
-| `LOCAL_IMAGE=quay.io/labnow/labnow-open:che-589-hermes-runtime-secret-startup-local bash tests/hermes-console-experience-container-test.sh` | `0` | 镜像内 Adapter/启动包装器源码 hash 一致，受管启动、generation 2、remove 与用户配置保留通过。 |
+| `LOCAL_IMAGE=quay.io/labnow/labnow-open:che-589-hermes-runtime-secret-startup-local bash tests/hermes-console-experience-container-test.sh` | `0` | 镜像内 Adapter/启动包装器源码 hash 一致，Node/npm、TUI Node 解析和“不向 Hermes home 自举 Node”断言通过；受管启动、generation 2、remove 与用户配置保留通过。 |
 | `git diff --check` | `0` | 无空白错误。 |
 
 credential 模式扫描不回显匹配内容：Git 差异、产品镜像 `inspect/history` 和 `docker image save`
@@ -56,8 +62,9 @@ credential 模式扫描不回显匹配内容：Git 差异、产品镜像 `inspec
 - 已验证：本仓启动边界不会在已识别 Hermes 受管运行时时带着字面量 `${OPENAI_API_KEY}` 启动；只有当前 Manifest/Secret/受管状态同代一致才启动。
 - 已验证：无 Manifest 的非受管 Workspace 不读取也不等待 Secret；受管材料未就绪不会无限等待，并以 `RUNTIME_MATERIAL_TIMEOUT` 失败关闭。
 - 待总控固定组合验证：新建 Workspace 中 Gateway、Dashboard、TUI 进程变量存在性（仅布尔值）及 Dashboard Chat 首条非空消息。这是 P8-H11 的真实浏览器验证，不能由 HTTP 200、进程存在或 Secret 文件存在替代。
+- 本轮总控浏览器发现的 `Chat unavailable: 1` 已在本仓定位为镜像运行时缺少 Node，导致 Hermes TUI 尝试在 Workspace 持久卷下载/解压 Node；本地新镜像已在不启动持久 TUI 会话的容器断言中验证其 Node 解析路径。真实 Dashboard 首条消息仍须总控以该新固定 image ID 重跑。
 - S0：本仓静态、合成和容器验证未发现。
-- S1：本仓已修复的冷启动时序无剩余已知 S1；真实浏览器闭环尚待总控复验，若失败应按冻结 P8-H11 规则重新定级。
+- S1：本仓已修复冷启动与 Node runtime 两个直接原因；原真实浏览器 Chat 失败尚待总控使用新固定镜像复验，复验前保持为待闭合 S1，不宣称已通过最终真实链路。
 
 ## Handoff
 
