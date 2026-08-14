@@ -19,7 +19,9 @@
 
 - 将 OpenClaw CLI/Gateway/Adapter 的 `OPENCLAW_CONFIG` 与 `OPENCLAW_CONFIG_PATH` 对齐到
   `/root/.openclaw/data/openclaw.json`。
-- 增加 `start-labnow-openclaw.sh`：仅设置缺失的 `gateway.controlUi.basePath`，保留已有用户 provider、agent 默认模型和 Gateway 设置；冲突路径失败关闭，不覆盖用户选择。
+- 增加 `start-labnow-openclaw.sh`：将 LabNow 托管的 `gateway.controlUi.basePath` 原子收敛为当前
+  `URL_PREFIX` 派生路径，保留已有用户 provider、agent 默认模型、Gateway 设置与 tools；这是共享
+  持久 Home 下的运行时路由状态，不将旧 Workspace 前缀视为用户配置冲突。
 - 新 Workspace 缺失 `tools.allow` 时只启用 P6 冻结工具 smoke 所需的 `exec`；已有用户工具白名单保持不变，避免默认暴露的额外工具让固定 smoke 漂移为非目标工具链。
 - Supervisor 启动实际存在的 OpenClaw Gateway 脚本，并固定 loopback `18789` 与 `autostart=true`。
 - 增加 `${URL_PREFIX}openclaw/` 的 Caddy 代理和 `${URL_PREFIX}api` readiness 代理；OpenClaw 保留完整 workspace 前缀以匹配 Control UI base path。
@@ -68,3 +70,6 @@ image id: sha256:c9c6a45637521cbbaeacea57fbb128696066fd91c5dff4521555f1bd5211f24
 - 本次 diff、镜像层、镜像 Config 与 P6 临时容器残留均执行了不输出匹配正文的 credential pattern 扫描，结果零命中；扫描命令退出码分别为 `1`、`1`、`1`，临时容器残留为零。
 - 本地构建与测试没有使用、记录或保留 RuntimeSecretFile、模型 key、Authorization header 或控制面凭证。
 - P6-MUST-03/04/07/08 的真实跨仓 claim→apply/probe→activate、chat/stream/tool、撤销/清理和聚合证据仍须由 `lab-dev` 黄金 runner 使用本轮短期运行材料完成。材料只能经挂载文件或环境安全传递，本仓不得记录其路径或内容。
+
+P8/CHE-595 对命名 Workspace 复用同一持久 Home 的补充验证、固定本地镜像身份和零明文扫描见
+[`evidence/2026-08-14-P8-CHE-595-openclaw-named-workspace-basepath.md`](evidence/2026-08-14-P8-CHE-595-openclaw-named-workspace-basepath.md)。
