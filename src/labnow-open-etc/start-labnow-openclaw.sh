@@ -56,16 +56,13 @@ configure_control_ui_base_path() {
     | .gateway.controlUi = (.gateway.controlUi | object_or_empty)
     | .tools = (.tools | object_or_empty)
     | if .tools.allow == null then .tools.allow = ["exec"] else . end
-    | if .gateway.controlUi.basePath == null then
-        .gateway.controlUi.basePath = $base_path
-      elif .gateway.controlUi.basePath == $base_path then
-        .
-      else
-        error("OPENCLAW_CONTROL_UI_BASE_PATH_CONFLICT")
-      end
+    # The user home is shared across named workspaces. basePath is runtime
+    # routing state, so atomically converge it to the current URL_PREFIX
+    # instead of treating a previous workspace name as a configuration error.
+    | .gateway.controlUi.basePath = $base_path
   ' "$OPENCLAW_CONFIG_PATH" > "$tmp" || {
     find "$(dirname -- "$tmp")" -maxdepth 1 -name "$(basename -- "$tmp")" -delete
-    die "OPENCLAW_CONTROL_UI_BASE_PATH_CONFLICT" 72
+    die "OPENCLAW_CONTROL_UI_BASE_PATH_UPDATE_FAILED" 72
   }
   chmod 0600 "$tmp"
   mv -f -- "$tmp" "$OPENCLAW_CONFIG_PATH"

@@ -43,7 +43,7 @@ chmod 0400 "$WORK_DIR/run/secret.json"
 # The adapter accepts overridable paths only for this isolated host-side test;
 # production uses the fixture's fixed /run/labnow/model-access/secret.json.
 jq --arg secret "$WORK_DIR/run/secret.json" '.api_key_file = $secret' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
-mv "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
+mv -f "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq -n '{
   gateway:{mode:"local"},
   models:{providers:{"user-provider":{baseUrl:"https://example.invalid/v1",apiKey:{source:"env",provider:"user-env",id:"USER_PROVIDER_KEY"},models:[]}}},
@@ -78,9 +78,9 @@ jq -e '
 if rg -n --fixed-strings 'test-secret-not-valid' "$WORK_DIR/openclaw"; then fail "secret leaked into generated state"; fi
 
 jq '.generation = 2' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
-mv "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
+mv -f "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq '.generation = 2' "$WORK_DIR/run/secret.json" > "$WORK_DIR/run/secret.next.json"
-mv "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
+mv -f "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"
 run_adapter apply
 assert_runtime_status applied 2 "$WORK_DIR/run/status.json"
@@ -109,9 +109,9 @@ for fixture in "$CONTRACT_DIR"/invalid/runtime-manifest-default-not-allowed.json
 done
 cp "$CONTRACT_DIR/valid/runtime-manifest.json" "$WORK_DIR/run/manifest.json"
 jq --arg secret "$WORK_DIR/run/secret.json" '.api_key_file = $secret' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
-mv "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
+mv -f "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq '.binding_id = "wrong-binding"' "$WORK_DIR/run/secret.json" > "$WORK_DIR/run/secret.next.json"
-mv "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
+mv -f "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"
 set +e
 run_adapter apply >/dev/null 2>&1
