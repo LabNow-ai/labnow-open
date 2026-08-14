@@ -112,6 +112,7 @@ if rg -q --fixed-strings 'api_key' "$WORK_DIR/data/openclaw.json"; then
 fi
 
 # Invalid prefixes fail before the persistent configuration can be changed.
+invalid_hash_before="$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')"
 set +e
 docker run --rm --platform linux/amd64 \
   --entrypoint bash \
@@ -122,6 +123,8 @@ docker run --rm --platform linux/amd64 \
 invalid_prefix_exit=$?
 set -e
 [ "$invalid_prefix_exit" -eq 64 ] || fail "invalid URL_PREFIX was accepted"
+invalid_hash_after="$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')"
+[ "$invalid_hash_before" = "$invalid_hash_after" ] || fail "invalid URL_PREFIX changed persisted config"
 
 printf 'PASS openclaw-product-closure image=%s config_sha256=%s idempotent_sha256=%s invalid_prefix_exit=%s\n' \
   "$LOCAL_IMAGE" "$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')" \
