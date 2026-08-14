@@ -4,7 +4,8 @@
 
 - Phase 分支：`dev/che-595-openclaw-named-workspace-basepath`
 - Phase base：`629cfad25152e437d1cae85f0f96f8296ffa845b`
-- 产品代码提交：`f9e2525416034e4a4b97f04d41caf91f0b5fe0b6`
+- 产品/测试代码提交范围：`f9e2525416034e4a4b97f04d41caf91f0b5fe0b6` 至
+  `e6294b2e185a674c123fa113321e662e55e07581`
 - control/review policy commit：`bf4112873dfe89604f52ef8689e527fe43e08d46`
 - 交付方式：`local_only`；未推送分支或镜像，未部署，未修改 `main` 或 `integration/llm-hub-v1`。
 
@@ -56,8 +57,9 @@ git diff --check
 ```
 
 容器回归输出的非敏感断言：最终配置 SHA-256 为
-`97a26306086f08256723148835ff0e6eec8a33c9a6662b757d06007132ef7f04`，重复 B 的配置 SHA-256 为
-`3938929698544396bc5078e55ada4fa500072bd49028715b6818cb5fafac3209`，非法前缀退出 `64`。
+`c5909797fc4000e090959275cc3a88612d314e1a21a427da6584a966f068b01d`，重复 B 的配置 SHA-256 为
+`3545731be89b48f0eb83dc552f82901a5d95fed2d00cb736d42c1511bf03ed1a`；非法前缀退出 `64`，并且其前后
+配置 SHA-256 相等。
 
 ## 凭证边界
 
