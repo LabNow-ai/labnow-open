@@ -135,3 +135,7 @@ dmypy.json
 development-docs/
 architecture-overview/
 docs/architecture-analysis.md
+
+# LLM Hub 日期化 Phase 证据统一维护在总控仓
+/doc/llm-hub-v1/evidence/
+/doc/llm-hub-v1/p[0-9]-*.md
