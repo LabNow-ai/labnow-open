@@ -1,15 +1,10 @@
 # Hermes
-@path_user_hermes_no_slash path {$URL_PREFIX:}hermes
-redir @path_user_hermes_no_slash {path}/ 308
-
 @path_user_hermes path {$URL_PREFIX:}hermes/*
 handle @path_user_hermes {
     uri strip_prefix {$URL_PREFIX:}hermes
-    reverse_proxy localhost:9119
+    reverse_proxy localhost:9119 {
+        header_up X-Forwarded-Prefix "{$URL_PREFIX:}hermes"
+    }
 }
-
-@path_user_hermes_readiness path {$URL_PREFIX:/}api
-handle @path_user_hermes_readiness {
-    rewrite * /api/status
-    reverse_proxy 127.0.0.1:9119
-}
+@path_user_hermes_no_slash path {$URL_PREFIX:}hermes
+redir @path_user_hermes_no_slash {path}/ 308

@@ -5,7 +5,7 @@ services:
   dev-labnow-open:
     container_name: ${CONTAINER_NAME:-dev-labnow-open}
     hostname: ${CONTAINER_NAME:-dev-labnow-open}
-    image: quay.io/labnow/data-science-dev:latest
+    image: quay.io/labnow0dev/labnow-open-hermes
     restart: always
     environment:
       - PROFILE_LOCALIZE=${PROFILE_LOCALIZE:-aliyun-pub}
