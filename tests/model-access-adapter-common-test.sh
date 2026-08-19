@@ -117,4 +117,14 @@ run_openclaw apply || fail 'openclaw rejected a unique unordered model list'
 write_manifest "$WORK_DIR/hermes/run/manifest.json" hermes '2099-01-01T00:00:00Z' '["z-model","a-model"]'
 run_hermes apply || fail 'hermes rejected a unique unordered model list'
 
+# RFC 3339 offset and fractional representations are valid contract values
+# when they are still in the future. This prevents the negative lease tests
+# above from accidentally passing because the parser rejected valid syntax.
+for future_expires_at in '2099-01-01T00:00:00+14:00' '2099-01-01T00:00:00.500Z'; do
+  write_manifest "$WORK_DIR/openclaw/run/manifest.json" openclaw "$future_expires_at" '["model-example-chat"]'
+  run_openclaw apply || fail "openclaw rejected valid expires_at=$future_expires_at"
+  write_manifest "$WORK_DIR/hermes/run/manifest.json" hermes "$future_expires_at" '["model-example-chat"]'
+  run_hermes apply || fail "hermes rejected valid expires_at=$future_expires_at"
+done
+
 printf 'PASS model-access-adapter-common\n'
