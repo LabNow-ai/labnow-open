@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Test-only path injection for the sourceable Hermes starter implementation.
+set -Eeuo pipefail
+
+STARTER_PATH="${1:?starter path is required}"
+# shellcheck source=/dev/null
+source "$STARTER_PATH"
+
+LABNOW_MANIFEST_PATH="${MODEL_ACCESS_TEST_MANIFEST_PATH:?}"
+LABNOW_SECRET_PATH="${MODEL_ACCESS_TEST_SECRET_PATH:?}"
+LABNOW_STATUS_PATH="${MODEL_ACCESS_TEST_STATUS_PATH:?}"
+HERMES_START_BIN="${MODEL_ACCESS_TEST_HERMES_START_BIN:?}"
+MANIFEST_DISCOVERY_WAIT_SECONDS="${MODEL_ACCESS_TEST_MANIFEST_WAIT_SECONDS:?}"
+RUNTIME_MATERIAL_WAIT_SECONDS="${MODEL_ACCESS_TEST_MATERIAL_WAIT_SECONDS:?}"
+start_labnow_hermes "${@:2}"

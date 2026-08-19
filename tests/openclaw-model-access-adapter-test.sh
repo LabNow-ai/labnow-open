@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADAPTER="$REPO_ROOT/src/labnow-open-etc/openclaw-model-access-adapter.sh"
+TEST_WRAPPER="$REPO_ROOT/tests/helpers/run-model-access-adapter-test-wrapper.sh"
 CONTRACT_DIR="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -25,25 +26,20 @@ assert_runtime_status() {
 }
 run_adapter() {
   local action="$1"
-  LABNOW_ALLOW_TEST_PATHS=1 \
-  LABNOW_MANIFEST_PATH="$WORK_DIR/run/manifest.json" \
-  LABNOW_SECRET_PATH="$WORK_DIR/run/secret.json" \
-  LABNOW_STATUS_PATH="$WORK_DIR/run/status.json" \
+  MODEL_ACCESS_TEST_MANIFEST_PATH="$WORK_DIR/run/manifest.json" \
+  MODEL_ACCESS_TEST_SECRET_PATH="$WORK_DIR/run/secret.json" \
+  MODEL_ACCESS_TEST_STATUS_PATH="$WORK_DIR/run/status.json" \
   OPENCLAW_STATE_DIR="$WORK_DIR/openclaw" \
   OPENCLAW_CONFIG_PATH="$WORK_DIR/openclaw/openclaw.json" \
   LABNOW_MODEL_ACCESS_STATE_DIR="$WORK_DIR/openclaw/labnow-model-access" \
   OPENCLAW_BIN=true \
-  "$ADAPTER" "$action"
+  "$TEST_WRAPPER" "$ADAPTER" "$action"
 }
 
 mkdir -p "$WORK_DIR/run" "$WORK_DIR/openclaw"
 cp "$CONTRACT_DIR/valid/runtime-manifest.json" "$WORK_DIR/run/manifest.json"
 cp "$CONTRACT_DIR/valid/runtime-secret-file.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"
-# The adapter accepts overridable paths only for this isolated host-side test;
-# production uses the fixture's fixed /run/labnow/model-access/secret.json.
-jq --arg secret "$WORK_DIR/run/secret.json" '.api_key_file = $secret' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
-mv -f "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq -n '{
   gateway:{mode:"local"},
   models:{providers:{"user-provider":{baseUrl:"https://example.invalid/v1",apiKey:{source:"env",provider:"user-env",id:"USER_PROVIDER_KEY"},models:[]}}},
@@ -108,8 +104,6 @@ for fixture in "$CONTRACT_DIR"/invalid/runtime-manifest-default-not-allowed.json
   [ "$fixture_exit" = 67 ] || fail "invalid manifest error code: $(basename "$fixture")=$fixture_exit"
 done
 cp "$CONTRACT_DIR/valid/runtime-manifest.json" "$WORK_DIR/run/manifest.json"
-jq --arg secret "$WORK_DIR/run/secret.json" '.api_key_file = $secret' "$WORK_DIR/run/manifest.json" > "$WORK_DIR/run/manifest.next.json"
-mv -f "$WORK_DIR/run/manifest.next.json" "$WORK_DIR/run/manifest.json"
 jq '.binding_id = "wrong-binding"' "$WORK_DIR/run/secret.json" > "$WORK_DIR/run/secret.next.json"
 mv -f "$WORK_DIR/run/secret.next.json" "$WORK_DIR/run/secret.json"
 chmod 0400 "$WORK_DIR/run/secret.json"

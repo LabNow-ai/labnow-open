@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STARTER="$REPO_ROOT/src/labnow-open-etc/start-labnow-hermes.sh"
+TEST_WRAPPER="$REPO_ROOT/tests/helpers/run-start-labnow-hermes-test-wrapper.sh"
 FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -62,19 +63,19 @@ run_starter() {
   local managed="$1" service="$2" result="$3"
   env -i \
     PATH="$PATH" \
-    LABNOW_ALLOW_TEST_PATHS=1 \
-    LABNOW_MANIFEST_PATH="$WORK_DIR/runtime/manifest.json" \
-    LABNOW_RUNTIME_SECRET_PATH="$WORK_DIR/runtime/secret.json" \
-    LABNOW_HERMES_START_BIN="$WORK_DIR/bin/start-hermes.sh" \
-    LABNOW_MANIFEST_DISCOVERY_WAIT_SECONDS="${LABNOW_MANIFEST_DISCOVERY_WAIT_SECONDS:-1}" \
-    LABNOW_RUNTIME_MATERIAL_WAIT_SECONDS="${LABNOW_RUNTIME_MATERIAL_WAIT_SECONDS:-2}" \
+    MODEL_ACCESS_TEST_MANIFEST_PATH="$WORK_DIR/runtime/manifest.json" \
+    MODEL_ACCESS_TEST_SECRET_PATH="$WORK_DIR/runtime/secret.json" \
+    MODEL_ACCESS_TEST_STATUS_PATH="$WORK_DIR/runtime/status.json" \
+    MODEL_ACCESS_TEST_HERMES_START_BIN="$WORK_DIR/bin/start-hermes.sh" \
+    MODEL_ACCESS_TEST_MANIFEST_WAIT_SECONDS="${LABNOW_MANIFEST_DISCOVERY_WAIT_SECONDS:-1}" \
+    MODEL_ACCESS_TEST_MATERIAL_WAIT_SECONDS="${LABNOW_RUNTIME_MATERIAL_WAIT_SECONDS:-2}" \
     HERMES_HOME="$WORK_DIR/hermes" \
     HERMES_MANAGED_DIR="$WORK_DIR/hermes/labnow-model-access" \
     EXPECTED_HERMES_HOME="$WORK_DIR/hermes" \
     EXPECTED_HERMES_MANAGED_DIR="$WORK_DIR/hermes/labnow-model-access" \
     EXPECT_MANAGED="$managed" \
     START_RESULT="$result" \
-    "$STARTER" "$service"
+    "$TEST_WRAPPER" "$STARTER" "$service"
 }
 
 # Existing coherent material starts all three consumers with an environment-only

@@ -6,6 +6,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADAPTER="$REPO_ROOT/src/labnow-open-etc/openclaw-model-access-adapter.sh"
+COMMON_LIB_DIR="$REPO_ROOT/src/labnow-open-etc/lib"
 CONTRACT_BUNDLE="0.1.0-candidate.2"
 CONTRACT_VERSION="v1alpha1"
 STAGE=""
@@ -206,6 +207,7 @@ run_adapter() {
     -v "$manifest_file:/run/labnow/model-access/manifest.json:ro" \
     -v "$secret_file:/run/labnow/model-access/secret.json:ro" \
     -v "$ADAPTER:/usr/local/bin/openclaw-model-access-adapter:ro" \
+    -v "$COMMON_LIB_DIR:/usr/local/bin/lib:ro" \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
     "$OPENCLAW_IMAGE" -lc "openclaw-model-access-adapter $action" >/dev/null 2>/dev/null
 }

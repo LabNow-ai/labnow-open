@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADAPTER="$REPO_ROOT/src/labnow-open-etc/openclaw-model-access-adapter.sh"
+COMMON_LIB_DIR="$REPO_ROOT/src/labnow-open-etc/lib"
 FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
 OPENCLAW_IMAGE="${OPENCLAW_IMAGE:-quay.io/labnow/openclaw@sha256:edc85cc2068f5ec0df470f7d06daa0a4fbd78ef5ad6cf5b48f58381da839dd12}"
 WORK_DIR="$(mktemp -d)"
@@ -45,6 +46,7 @@ run_adapter() {
     -e OPENCLAW_CONFIG=/root/.openclaw/data/openclaw.json \
     -e OPENCLAW_STATE_DIR=/root/.openclaw/data \
     -v "$ADAPTER:/usr/local/bin/openclaw-model-access-adapter:ro" \
+    -v "$COMMON_LIB_DIR:/usr/local/bin/lib:ro" \
     -v "$WORK_DIR/status:/run/labnow/model-access" \
     -v "$WORK_DIR/runtime/manifest.json:/run/labnow/model-access/manifest.json:ro" \
     -v "$WORK_DIR/runtime/secret.json:/run/labnow/model-access/secret.json:ro" \

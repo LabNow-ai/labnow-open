@@ -4,6 +4,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADAPTER="$REPO_ROOT/src/labnow-open-etc/hermes-model-access-adapter.sh"
+COMMON_LIB_DIR="$REPO_ROOT/src/labnow-open-etc/lib"
 FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
 HERMES_IMAGE="${HERMES_IMAGE:?set HERMES_IMAGE to an immutable quay.io/labnow/hermes@sha256 reference}"
 case "$HERMES_IMAGE" in quay.io/labnow/hermes@sha256:*) ;; *) printf '%s\n' 'FAIL: HERMES_IMAGE must be an immutable quay.io/labnow/hermes digest' >&2; exit 64 ;; esac
@@ -29,6 +30,7 @@ run_adapter() {
     -e HERMES_HOME=/root/.hermes \
     -e HERMES_MANAGED_DIR=/root/.hermes/labnow-model-access \
     -v "$ADAPTER:/usr/local/bin/hermes-model-access-adapter:ro" \
+    -v "$COMMON_LIB_DIR:/usr/local/bin/lib:ro" \
     -v "$WORK_DIR/status:/run/labnow/model-access" \
     -v "$WORK_DIR/runtime/manifest.json:/run/labnow/model-access/manifest.json:ro" \
     -v "$WORK_DIR/runtime/secret.json:/run/labnow/model-access/secret.json:ro" \
