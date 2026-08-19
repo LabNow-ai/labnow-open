@@ -81,6 +81,17 @@ assert_preserved_config() {
   [ "$(stat -f '%Lp' "$WORK_DIR/data/openclaw.json")" = 600 ] || fail "rendered config permissions are not 0600"
 }
 
+assert_unconfigured_tools_remain_unconfigured() {
+  local expected_base_path="$1"
+  jq -e --arg base_path "$expected_base_path" '
+    .models.providers.user.baseUrl == "https://user.example.invalid"
+    and .agents.defaults.model == "user/model"
+    and .gateway.mode == "local"
+    and .gateway.controlUi.basePath == $base_path
+    and (has("tools") | not)
+  ' "$WORK_DIR/data/openclaw.json" >/dev/null || fail "gateway rendering enabled tools for an unconfigured user"
+}
+
 mkdir -p "$WORK_DIR/data"
 printf '%s\n' '{"models":{"providers":{"user":{"baseUrl":"https://user.example.invalid","models":[]}}},"gateway":{"mode":"local","controlUi":{"basePath":"/stale/openclaw"}},"agents":{"defaults":{"model":"user/model"}},"tools":{"allow":["exec"]}}' > "$WORK_DIR/data/openclaw.json"
 chmod 0600 "$WORK_DIR/data/openclaw.json"
@@ -125,6 +136,15 @@ set -e
 [ "$invalid_prefix_exit" -eq 64 ] || fail "invalid URL_PREFIX was accepted"
 invalid_hash_after="$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')"
 [ "$invalid_hash_before" = "$invalid_hash_after" ] || fail "invalid URL_PREFIX changed persisted config"
+
+# A user who did not configure tools must not receive an implicit exec grant.
+# Retain the otherwise-valid fixture shape so the independent CLI validation in
+# start_workspace continues to exercise the rendered configuration.
+printf '%s\n' '{"models":{"providers":{"user":{"baseUrl":"https://user.example.invalid","models":[]}}},"gateway":{"mode":"local","controlUi":{"basePath":"/stale/openclaw"}},"agents":{"defaults":{"model":"user/model"}}}' > "$WORK_DIR/data/openclaw.json"
+chmod 0600 "$WORK_DIR/data/openclaw.json"
+start_workspace /user/unconfigured-tools/
+assert_unconfigured_tools_remain_unconfigured /user/unconfigured-tools/openclaw
+stop_workspace
 
 printf 'PASS openclaw-product-closure image=%s config_sha256=%s idempotent_sha256=%s invalid_prefix_exit=%s\n' \
   "$LOCAL_IMAGE" "$(shasum -a 256 "$WORK_DIR/data/openclaw.json" | awk '{print $1}')" \

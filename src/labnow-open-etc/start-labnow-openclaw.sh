@@ -54,8 +54,6 @@ configure_control_ui_base_path() {
       if . == null then {} elif type == "object" then . else error("expected object") end;
     .gateway = (.gateway | object_or_empty)
     | .gateway.controlUi = (.gateway.controlUi | object_or_empty)
-    | .tools = (.tools | object_or_empty)
-    | if .tools.allow == null then .tools.allow = ["exec"] else . end
     # The user home is shared across named workspaces. basePath is runtime
     # routing state, so atomically converge it to the current URL_PREFIX
     # instead of treating a previous workspace name as a configuration error.
