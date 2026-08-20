@@ -48,6 +48,9 @@ run_in_image() {
 expected_adapter_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/hermes-model-access-adapter.sh" | awk '{print $1}')"
 image_adapter_sha="$(run_in_image 'sha256sum /usr/local/bin/hermes-model-access-adapter | awk "{print \$1}"')"
 [ "$image_adapter_sha" = "$expected_adapter_sha" ] || fail "image adapter does not match source"
+expected_common_lib_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/lib/model-access-adapter-common.sh" | awk '{print $1}')"
+image_common_lib_sha="$(run_in_image 'sha256sum /opt/labnow-open/etc/lib/model-access-adapter-common.sh | awk "{print \$1}"')"
+[ "$image_common_lib_sha" = "$expected_common_lib_sha" ] || fail "image common adapter library does not match source"
 expected_starter_sha="$(sha256sum "$REPO_ROOT/src/labnow-open-etc/start-labnow-hermes.sh" | awk '{print $1}')"
 image_starter_sha="$(run_in_image 'sha256sum /usr/local/bin/start-labnow-hermes.sh | awk "{print \$1}"')"
 [ "$image_starter_sha" = "$expected_starter_sha" ] || fail "image Hermes starter does not match source"
@@ -74,6 +77,7 @@ if rg -n --fixed-strings 'test-secret-not-valid' "$WORK_DIR/hermes" "$WORK_DIR/s
 # The mounted upstream launcher is a non-persistent test probe: it proves the
 # production wrapper supplies the key only to its child environment.
 docker run --rm --platform linux/amd64 --entrypoint bash \
+  -e MODEL_ACCESS_MODE=managed \
   -v "$WORK_DIR/status:/run/labnow/model-access" \
   -v "$WORK_DIR/runtime/manifest.json:/run/labnow/model-access/manifest.json:ro" \
   -v "$WORK_DIR/runtime/secret.json:/run/labnow/model-access/secret.json:ro" \

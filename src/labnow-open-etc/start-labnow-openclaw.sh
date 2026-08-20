@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
-# Starts the OpenClaw gateway at the LabNow workspace route without touching
-# LabNow's managed model provider namespace or RuntimeSecretFile.
-set -euo pipefail
+# Starts the OpenClaw gateway at the LabNow workspace route.
+set -Eeuo pipefail
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+  SCRIPT_LINK="$(readlink "$SCRIPT_PATH")"
+  case "$SCRIPT_LINK" in
+    /*) SCRIPT_PATH="$SCRIPT_LINK" ;;
+    *) SCRIPT_PATH="$(dirname "$SCRIPT_PATH")/$SCRIPT_LINK" ;;
+  esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+LABNOW_ADAPTER_ID="openclaw"
+LABNOW_ADAPTER_VERSION="0.1.0-rc.1"
+LABNOW_MANIFEST_PATH="/run/labnow/model-access/manifest.json"
+LABNOW_SECRET_PATH="/run/labnow/model-access/secret.json"
+LABNOW_STATUS_PATH="/run/labnow/model-access/status.json"
+# shellcheck source=lib/model-access-adapter-common.sh
+source "${SCRIPT_DIR}/lib/model-access-adapter-common.sh"
 
 readonly OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG:-/root/.openclaw/data/openclaw.json}"
+readonly OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/root/.openclaw/data}"
 readonly OPENCLAW_GATEWAY_PORT="18789"
 
 die() {
@@ -12,12 +29,9 @@ die() {
 }
 
 assert_regular_config_path() {
-  [[ "$OPENCLAW_CONFIG_PATH" = /* ]] || die "SECURE_PATH_REQUIRED" 64
-
-  local config_parent
-  config_parent="$(dirname -- "$OPENCLAW_CONFIG_PATH")"
-  mkdir -p -- "$config_parent"
-  [ ! -L "$config_parent" ] || die "SECURE_PATH_REQUIRED" 64
+  [[ "$OPENCLAW_CONFIG_PATH" = /* && "$OPENCLAW_STATE_DIR" = /* ]] || labnow_die "SECURE_PATH_REQUIRED"
+  labnow_ensure_trusted_directory "$OPENCLAW_STATE_DIR"
+  labnow_assert_trusted_path "$OPENCLAW_STATE_DIR" "$OPENCLAW_CONFIG_PATH"
   [ ! -e "$OPENCLAW_CONFIG_PATH" ] || [ ! -L "$OPENCLAW_CONFIG_PATH" ] || die "SECURE_PATH_REQUIRED" 64
 }
 
@@ -66,5 +80,30 @@ configure_control_ui_base_path() {
   mv -f -- "$tmp" "$OPENCLAW_CONFIG_PATH"
 }
 
-configure_control_ui_base_path
-exec /opt/openclaw/start-openclaw.sh gateway --allow-unconfigured --bind loopback --port "$OPENCLAW_GATEWAY_PORT"
+openclaw_model_access_action() {
+  "${SCRIPT_DIR}/openclaw-model-access-adapter.sh" "$1"
+}
+
+openclaw_exec_gateway() {
+  exec /opt/openclaw/start-openclaw.sh gateway --allow-unconfigured --bind loopback --port "$OPENCLAW_GATEWAY_PORT"
+}
+
+start_labnow_openclaw() {
+  case "${MODEL_ACCESS_MODE+x}:${MODEL_ACCESS_MODE:-}" in
+    :*) labnow_die "MODEL_ACCESS_MODE_REQUIRED" ;;
+    x:managed)
+      labnow_validate_manifest
+      labnow_validate_secret
+      openclaw_model_access_action apply
+      openclaw_model_access_action probe
+      ;;
+    x:unmanaged) ;;
+    *) labnow_die "MODEL_ACCESS_MODE_INVALID" ;;
+  esac
+  configure_control_ui_base_path
+  openclaw_exec_gateway
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  start_labnow_openclaw "$@"
+fi

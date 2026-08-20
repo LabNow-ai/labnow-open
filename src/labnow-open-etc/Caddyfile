@@ -23,8 +23,6 @@
     handle @path_user_home {
         uri strip_prefix {$URL_PREFIX:}home
         reverse_proxy localhost:9001
-        # root * /opt/labnow-open/web
-        # file_server
     }
     @path_user_home_no_slash path_regexp ^{$URL_PREFIX:}home$
     redir @path_user_home_no_slash {path}/ 308
@@ -85,7 +83,8 @@
         }
     }
 
-    import /etc/caddy/enabled-routes/*.caddy
+    # Dockerfile enables exactly one APP_KIND-specific readiness route here.
+    import /etc/caddy/routes.d/enabled/*.caddy
 
     handle {  # Proxy all other requests to a default backend server on port 8888 for jupyter
         reverse_proxy localhost:8888

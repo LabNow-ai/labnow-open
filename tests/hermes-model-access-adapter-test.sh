@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADAPTER="$REPO_ROOT/src/labnow-open-etc/hermes-model-access-adapter.sh"
+TEST_WRAPPER="$REPO_ROOT/tests/helpers/run-model-access-adapter-test-wrapper.sh"
 FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -23,14 +24,13 @@ assert_runtime_status() {
 
 run_adapter() {
   local action="$1"
-  LABNOW_ALLOW_TEST_PATHS=1 \
-  LABNOW_MANIFEST_PATH="$WORK_DIR/runtime/manifest.json" \
-  LABNOW_SECRET_PATH="$WORK_DIR/runtime/secret.json" \
-  LABNOW_STATUS_PATH="$WORK_DIR/runtime/status.json" \
+  MODEL_ACCESS_TEST_MANIFEST_PATH="$WORK_DIR/runtime/manifest.json" \
+  MODEL_ACCESS_TEST_SECRET_PATH="$WORK_DIR/runtime/secret.json" \
+  MODEL_ACCESS_TEST_STATUS_PATH="$WORK_DIR/runtime/status.json" \
   HERMES_HOME="$WORK_DIR/hermes" \
   HERMES_MANAGED_DIR="$WORK_DIR/hermes/labnow-model-access" \
   HERMES_BIN=true \
-  "$ADAPTER" "$action"
+  "$TEST_WRAPPER" "$ADAPTER" "$action"
 }
 
 mkdir -p "$WORK_DIR/runtime" "$WORK_DIR/hermes"
