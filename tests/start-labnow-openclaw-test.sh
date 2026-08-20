@@ -5,7 +5,8 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STARTER="$REPO_ROOT/src/labnow-open-etc/start-labnow-openclaw.sh"
 TEST_WRAPPER="$REPO_ROOT/tests/helpers/run-start-labnow-openclaw-test-wrapper.sh"
-FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
+FIXTURES="${MODEL_ACCESS_FIXTURES_DIR:-$REPO_ROOT/../lab_project_analysis/contracts/model-access/v1alpha1/fixtures}"
+[[ -d "$FIXTURES" ]] || { printf 'FAIL: contract fixtures not found at %s; set MODEL_ACCESS_FIXTURES_DIR\n' "$FIXTURES" >&2; exit 1; }
 WORK_DIR="$(mktemp -d)"
 trap 'find "$WORK_DIR" -depth -delete' EXIT
 

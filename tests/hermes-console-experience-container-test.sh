@@ -4,7 +4,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FIXTURES="/Users/chengeng/Projects/GitHub/lab_project_analysis/contracts/model-access/v1alpha1/fixtures"
+FIXTURES="${MODEL_ACCESS_FIXTURES_DIR:-$REPO_ROOT/../lab_project_analysis/contracts/model-access/v1alpha1/fixtures}"
+[[ -d "$FIXTURES" ]] || { printf 'FAIL: contract fixtures not found at %s; set MODEL_ACCESS_FIXTURES_DIR\n' "$FIXTURES" >&2; exit 1; }
 LOCAL_IMAGE="${LOCAL_IMAGE:?set LOCAL_IMAGE to quay.io/labnow/labnow-open:che-568-hermes-console-experience-local}"
 case "$LOCAL_IMAGE" in quay.io/labnow/labnow-open:*) ;; *) printf '%s\n' 'FAIL: LOCAL_IMAGE must be a local quay.io/labnow/labnow-open tag' >&2; exit 64 ;; esac
 WORK_DIR="$(mktemp -d)"
