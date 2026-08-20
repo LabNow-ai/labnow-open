@@ -77,6 +77,7 @@ if rg -n --fixed-strings 'test-secret-not-valid' "$WORK_DIR/hermes" "$WORK_DIR/s
 # The mounted upstream launcher is a non-persistent test probe: it proves the
 # production wrapper supplies the key only to its child environment.
 docker run --rm --platform linux/amd64 --entrypoint bash \
+  -e MODEL_ACCESS_MODE=managed \
   -v "$WORK_DIR/status:/run/labnow/model-access" \
   -v "$WORK_DIR/runtime/manifest.json:/run/labnow/model-access/manifest.json:ro" \
   -v "$WORK_DIR/runtime/secret.json:/run/labnow/model-access/secret.json:ro" \

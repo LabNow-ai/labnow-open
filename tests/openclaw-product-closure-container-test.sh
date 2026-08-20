@@ -37,6 +37,7 @@ start_workspace() {
 
   docker run --rm -d --platform linux/amd64 --name "$CONTAINER_NAME" \
     -e "URL_PREFIX=${prefix}" \
+    -e MODEL_ACCESS_MODE=unmanaged \
     -v "$WORK_DIR/data:/root/.openclaw/data" \
     "$LOCAL_IMAGE" >/dev/null
 
@@ -117,6 +118,7 @@ set +e
 docker run --rm --platform linux/amd64 \
   --entrypoint bash \
   -e URL_PREFIX=not-an-absolute-prefix \
+  -e MODEL_ACCESS_MODE=unmanaged \
   -v "$WORK_DIR/data:/root/.openclaw/data" \
   "$LOCAL_IMAGE" \
   -lc 'start-labnow-openclaw.sh gateway' >/dev/null 2>&1

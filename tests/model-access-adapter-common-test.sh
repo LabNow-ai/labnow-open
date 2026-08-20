@@ -61,8 +61,7 @@ run_starter() {
   MODEL_ACCESS_TEST_SECRET_PATH="$WORK_DIR/hermes/run/secret.json" \
   MODEL_ACCESS_TEST_STATUS_PATH="$WORK_DIR/hermes/run/start-status.json" \
   MODEL_ACCESS_TEST_HERMES_START_BIN="$WORK_DIR/hermes/bin/start-hermes.sh" \
-  MODEL_ACCESS_TEST_MANIFEST_WAIT_SECONDS=0 \
-  MODEL_ACCESS_TEST_MATERIAL_WAIT_SECONDS=0 \
+  MODEL_ACCESS_MODE=managed \
   HERMES_HOME="$WORK_DIR/hermes/home" \
   HERMES_MANAGED_DIR="$WORK_DIR/hermes/home/labnow-model-access" \
   "$STARTER_WRAPPER" "$HERMES_STARTER" gateway
