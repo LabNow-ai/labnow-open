@@ -11,22 +11,10 @@ case "$(basename -- "$ADAPTER_PATH")" in
   *) printf '%s\n' 'unsupported adapter test target' >&2; exit 64 ;;
 esac
 
-# macOS does not ship util-linux flock. This wrapper-only fallback preserves
-# inter-process exclusion for host assertions; production still requires flock.
-if ! command -v flock >/dev/null 2>&1; then
-  flock() {
-    case "$1" in
-      -x)
-        while ! mkdir "${LABNOW_ACTIVE_LOCK_PATH}.test-lock" 2>/dev/null; do sleep 0.02; done
-        LABNOW_TEST_LOCK_DIR="${LABNOW_ACTIVE_LOCK_PATH}.test-lock"
-        ;;
-      -u)
-        rmdir "${LABNOW_TEST_LOCK_DIR:?}" 2>/dev/null || true
-        ;;
-      *) printf '%s\n' 'unsupported test flock operation' >&2; return 64 ;;
-    esac
-  }
-fi
+# Tests run inside the product test container only. util-linux flock is a hard
+# prerequisite; no host emulation is provided.
+command -v flock >/dev/null 2>&1 \
+  || { printf '%s\n' 'FAIL: flock is required; run this test inside the product test container' >&2; exit 1; }
 
 # shellcheck source=/dev/null
 source "$ADAPTER_PATH"
