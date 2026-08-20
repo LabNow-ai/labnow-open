@@ -23,20 +23,22 @@ OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/root/.openclaw/data}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-${OPENCLAW_STATE_DIR}/openclaw.json}"
 STATE_DIR="${LABNOW_MODEL_ACCESS_STATE_DIR:-${OPENCLAW_STATE_DIR}/labnow-model-access}"
 OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
+LABNOW_CONFIG_ROOT="$OPENCLAW_STATE_DIR"
+LABNOW_MANAGED_STATE_DIR="$STATE_DIR"
 
 openclaw_assert_runtime_paths() {
   [[ "$OPENCLAW_STATE_DIR" = /* && "$OPENCLAW_CONFIG_PATH" = /* && "$STATE_DIR" = /* ]] || labnow_die "SECURE_PATH_REQUIRED"
-  labnow_assert_not_symlink "$OPENCLAW_STATE_DIR"
-  labnow_assert_under "$OPENCLAW_STATE_DIR" "$OPENCLAW_CONFIG_PATH"
-  labnow_assert_under "$OPENCLAW_STATE_DIR" "$STATE_DIR"
+  labnow_assert_trusted_path "$OPENCLAW_STATE_DIR" "$OPENCLAW_CONFIG_PATH"
+  labnow_assert_trusted_path "$OPENCLAW_STATE_DIR" "$STATE_DIR"
   labnow_assert_not_symlink "$OPENCLAW_CONFIG_PATH"
   labnow_assert_not_symlink "$STATE_DIR"
 }
 
 openclaw_ensure_paths() {
-  mkdir -p -- "$OPENCLAW_STATE_DIR" "$STATE_DIR"
-  labnow_assert_not_symlink "$OPENCLAW_STATE_DIR"
-  labnow_assert_not_symlink "$STATE_DIR"
+  labnow_ensure_trusted_directory "$OPENCLAW_STATE_DIR"
+  labnow_ensure_trusted_directory "$STATE_DIR"
+  labnow_assert_trusted_path "$OPENCLAW_STATE_DIR" "$OPENCLAW_CONFIG_PATH"
+  labnow_assert_trusted_path "$OPENCLAW_STATE_DIR" "$STATE_DIR"
   chmod 0700 "$STATE_DIR"
 }
 
@@ -98,7 +100,9 @@ labnow_adapter_apply() {
   labnow_validate_secret
   openclaw_ensure_paths
   openclaw_ensure_config
+  labnow_assert_apply_generation
   openclaw_render_apply
+  labnow_write_binding_state
   labnow_write_status "applied"
 }
 
@@ -117,7 +121,10 @@ labnow_adapter_remove() {
   openclaw_assert_runtime_paths
   labnow_validate_manifest
   openclaw_ensure_paths
-  openclaw_render_remove
+  if labnow_remove_matches_binding; then
+    openclaw_render_remove
+    labnow_remove_binding_state
+  fi
   labnow_write_status "removed"
 }
 

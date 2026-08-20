@@ -12,16 +12,19 @@ readonly LABNOW_CONTRACT_VERSION="v1alpha1"
 readonly LABNOW_CONTRACT_MANIFEST_PATH="/run/labnow/model-access/manifest.json"
 readonly LABNOW_CONTRACT_SECRET_PATH="/run/labnow/model-access/secret.json"
 readonly LABNOW_CONTRACT_STATUS_PATH="/run/labnow/model-access/status.json"
+readonly LABNOW_CONTRACT_RUNTIME_ROOT="/run/labnow/model-access"
 
 LABNOW_TEMP_FILES=()
 LABNOW_LAST_TEMP=""
 LABNOW_LAST_ERROR=""
 LABNOW_STATUS_IDENTITY_READY=false
 LABNOW_FAILURE_STATUS_WRITTEN=false
+LABNOW_LOCK_HELD=false
 
 # Adapter-local errors use this registry. Its numeric values are deliberately
 # stable across OpenClaw and Hermes, while the public HTTP error registry stays
-# owned by the model-access contract.
+# owned by the model-access contract. GENERATION_CONFLICT maps by name to the
+# contract's HTTP 409 entry only; this registry does not change that JSON API.
 labnow_error_exit_code() {
   case "$1" in
     USAGE|SECURE_PATH_REQUIRED|INVALID_WAIT_CONFIGURATION) printf '64\n' ;;
@@ -33,6 +36,9 @@ labnow_error_exit_code() {
     APPLICATION_CONFIG_INVALID) printf '70\n' ;;
     MANAGED_CONFIG_MISSING) printf '71\n' ;;
     RUNTIME_MATERIAL_TIMEOUT) printf '73\n' ;;
+    GENERATION_CONFLICT) printf '74\n' ;;
+    MODEL_ACCESS_MODE_REQUIRED) printf '75\n' ;;
+    MODEL_ACCESS_MODE_INVALID) printf '76\n' ;;
     *) printf '1\n' ;;
   esac
 }
@@ -74,6 +80,50 @@ labnow_assert_not_symlink() {
   [ ! -L "$1" ] || labnow_die "SECURE_PATH_REQUIRED"
 }
 
+# Creates directories needed by the caller and rejects a substituted final
+# component. Callers apply 0700 to their adapter-owned managed directories.
+labnow_ensure_trusted_directory() {
+  local path="$1"
+  [[ "$path" = /* ]] || labnow_die "SECURE_PATH_REQUIRED"
+  (umask 077 && mkdir -p -- "$path") || labnow_die "SECURE_PATH_REQUIRED"
+  [ -d "$path" ] && [ ! -L "$path" ] || labnow_die "SECURE_PATH_REQUIRED"
+}
+
+labnow_assert_trusted_path() {
+  local root="$1" path="$2" canonical_root canonical_path relative component current
+  local IFS='/'
+  local -a components=()
+  [ -d "$root" ] && [ ! -L "$root" ] || labnow_die "SECURE_PATH_REQUIRED"
+  case "$path" in
+    "$root"|"$root"/*) ;;
+    *) labnow_die "SECURE_PATH_REQUIRED" ;;
+  esac
+  canonical_root="$(labnow_canonical_path "$root")"
+  canonical_path="$(labnow_canonical_path "$path")"
+  case "$canonical_path" in
+    "$canonical_root"|"$canonical_root"/*) ;;
+    *) labnow_die "SECURE_PATH_REQUIRED" ;;
+  esac
+  relative="${path#"$root"}"
+  relative="${relative#/}"
+  current="$root"
+  [ ! -L "$current" ] || labnow_die "SECURE_PATH_REQUIRED"
+  IFS='/' read -r -a components <<< "$relative"
+  for component in "${components[@]}"; do
+    [ -n "$component" ] || continue
+    case "$component" in .|..) labnow_die "SECURE_PATH_REQUIRED" ;; esac
+    current="${current%/}/${component}"
+    [ ! -L "$current" ] || labnow_die "SECURE_PATH_REQUIRED"
+  done
+}
+
+labnow_assert_runtime_status_path() {
+  local runtime_root="${LABNOW_TRUSTED_RUNTIME_ROOT:-$LABNOW_CONTRACT_RUNTIME_ROOT}"
+  [[ "$runtime_root" = /* && "$LABNOW_STATUS_PATH" = /* ]] || labnow_die "SECURE_PATH_REQUIRED"
+  labnow_assert_trusted_path "$runtime_root" "$LABNOW_STATUS_PATH"
+  [ ! -e "$LABNOW_STATUS_PATH" ] || labnow_assert_not_symlink "$LABNOW_STATUS_PATH"
+}
+
 labnow_assert_regular_file() {
   [ -f "$1" ] && [ ! -L "$1" ] || labnow_die "$2"
 }
@@ -92,6 +142,8 @@ labnow_assert_secret_file() {
 
 labnow_make_temp() {
   local parent="$1" pattern="$2"
+  [ -d "$parent" ] || labnow_die "SECURE_PATH_REQUIRED"
+  labnow_assert_not_symlink "$parent"
   LABNOW_LAST_TEMP="$(mktemp "${parent}/${pattern}.XXXXXX")"
   LABNOW_TEMP_FILES+=("$LABNOW_LAST_TEMP")
 }
@@ -112,14 +164,18 @@ labnow_cleanup() {
   LABNOW_TEMP_FILES=()
 }
 
+labnow_release_config_lock() {
+  [ "$LABNOW_LOCK_HELD" = true ] || return 0
+  flock -u 9 || true
+  exec 9>&- || true
+  LABNOW_LOCK_HELD=false
+}
+
 labnow_write_status() {
   local phase="$1" error_code="${2:-}" message="${3:-}" status_parent tmp
   [ "$LABNOW_STATUS_IDENTITY_READY" = true ] || return 0
   status_parent="$(dirname -- "$LABNOW_STATUS_PATH")"
-  mkdir -p -- "$status_parent"
-  labnow_assert_not_symlink "$status_parent"
-  [ ! -e "$LABNOW_STATUS_PATH" ] || labnow_assert_not_symlink "$LABNOW_STATUS_PATH"
-  chmod 0700 "$status_parent"
+  labnow_assert_runtime_status_path
   labnow_make_temp "$status_parent" ".status"
   tmp="$LABNOW_LAST_TEMP"
   umask 077
@@ -149,6 +205,7 @@ labnow_on_exit() {
     LABNOW_FAILURE_STATUS_WRITTEN=true
     labnow_write_status "failed" "${LABNOW_LAST_ERROR:-APPLICATION_CONFIG_INVALID}" "model access operation failed" || true
   fi
+  labnow_release_config_lock
   labnow_cleanup
   exit "$exit_code"
 }
@@ -226,6 +283,81 @@ labnow_validate_secret() {
   ' "$LABNOW_SECRET_PATH" >/dev/null || labnow_die "IDENTITY_MISMATCH"
 }
 
+labnow_binding_state_path() {
+  : "${LABNOW_MANAGED_STATE_DIR:?LABNOW_MANAGED_STATE_DIR is required}"
+  printf '%s/binding.json\n' "$LABNOW_MANAGED_STATE_DIR"
+}
+
+labnow_read_binding_state() {
+  local binding_path
+  binding_path="$(labnow_binding_state_path)"
+  [ -e "$binding_path" ] || [ -L "$binding_path" ] || return 1
+  labnow_assert_regular_file "$binding_path" "MANAGED_CONFIG_MISSING"
+  jq -e '
+    type == "object"
+    and (keys | sort) == ["binding_id", "generation", "lease_id"]
+    and (.binding_id | type == "string" and length >= 1 and length <= 128 and test("^[A-Za-z0-9][A-Za-z0-9._:-]*$"))
+    and (.lease_id | type == "string" and length >= 1 and length <= 128 and test("^[A-Za-z0-9][A-Za-z0-9._:-]*$"))
+    and (.generation | type == "number" and floor == . and . >= 1)
+  ' "$binding_path" >/dev/null || labnow_die "MANAGED_CONFIG_MISSING"
+}
+
+labnow_assert_apply_generation() {
+  local binding_path incoming_generation current_generation
+  binding_path="$(labnow_binding_state_path)"
+  [ -e "$binding_path" ] || [ -L "$binding_path" ] || return 0
+  labnow_read_binding_state
+  incoming_generation="$(labnow_manifest_field '.generation')"
+  current_generation="$(jq -er '.generation' "$binding_path")"
+  if [ "$incoming_generation" -lt "$current_generation" ]; then
+    labnow_die "GENERATION_CONFLICT"
+  fi
+  if [ "$incoming_generation" -eq "$current_generation" ]; then
+    jq -e --slurpfile manifest "$LABNOW_MANIFEST_PATH" '
+      .binding_id == $manifest[0].binding_id
+      and .lease_id == $manifest[0].lease_id
+      and .generation == $manifest[0].generation
+    ' "$binding_path" >/dev/null || labnow_die "GENERATION_CONFLICT"
+  fi
+}
+
+# A missing state is an idempotent remove only when there is no managed state to
+# delete. Callers must leave their application config untouched in that case.
+labnow_remove_matches_binding() {
+  local binding_path
+  binding_path="$(labnow_binding_state_path)"
+  [ -e "$binding_path" ] || [ -L "$binding_path" ] || return 1
+  labnow_read_binding_state
+  jq -e --slurpfile manifest "$LABNOW_MANIFEST_PATH" '
+    .binding_id == $manifest[0].binding_id
+    and .lease_id == $manifest[0].lease_id
+    and .generation == $manifest[0].generation
+  ' "$binding_path" >/dev/null || labnow_die "GENERATION_CONFLICT"
+}
+
+labnow_write_binding_state() {
+  local binding_path tmp
+  binding_path="$(labnow_binding_state_path)"
+  labnow_make_temp "$LABNOW_MANAGED_STATE_DIR" ".binding"
+  tmp="$LABNOW_LAST_TEMP"
+  umask 077
+  jq -n \
+    --arg binding_id "$(labnow_manifest_field '.binding_id')" \
+    --arg lease_id "$(labnow_manifest_field '.lease_id')" \
+    --argjson generation "$(labnow_manifest_field '.generation')" \
+    '{binding_id:$binding_id, lease_id:$lease_id, generation:$generation}' > "$tmp"
+  chmod 0600 "$tmp"
+  mv -f -- "$tmp" "$binding_path"
+  labnow_forget_temp "$tmp"
+}
+
+labnow_remove_binding_state() {
+  local binding_path
+  binding_path="$(labnow_binding_state_path)"
+  [ ! -L "$binding_path" ] || labnow_die "SECURE_PATH_REQUIRED"
+  rm -f -- "$binding_path"
+}
+
 labnow_write_empty_json_object() {
   local path="$1" parent tmp
   [ -e "$path" ] && return 0
@@ -239,6 +371,33 @@ labnow_write_empty_json_object() {
   labnow_forget_temp "$tmp"
 }
 
+labnow_with_config_lock() {
+  local lock_path
+  : "${LABNOW_CONFIG_ROOT:?LABNOW_CONFIG_ROOT is required}"
+  : "${LABNOW_MANAGED_STATE_DIR:?LABNOW_MANAGED_STATE_DIR is required}"
+  labnow_ensure_trusted_directory "$LABNOW_CONFIG_ROOT"
+  labnow_ensure_trusted_directory "$LABNOW_MANAGED_STATE_DIR"
+  chmod 0700 "$LABNOW_MANAGED_STATE_DIR"
+  labnow_assert_trusted_path "$LABNOW_CONFIG_ROOT" "$LABNOW_MANAGED_STATE_DIR"
+  lock_path="${LABNOW_LOCK_PATH:-${LABNOW_MANAGED_STATE_DIR}/adapter.lock}"
+  labnow_assert_trusted_path "$LABNOW_MANAGED_STATE_DIR" "$lock_path"
+  [ ! -e "$lock_path" ] || labnow_assert_regular_file "$lock_path" "SECURE_PATH_REQUIRED"
+  (umask 077 && : > "$lock_path")
+  chmod 0600 "$lock_path"
+  command -v flock >/dev/null 2>&1 || labnow_die "APPLICATION_CONFIG_INVALID"
+  LABNOW_ACTIVE_LOCK_PATH="$lock_path"
+  exec 9>"$lock_path"
+  flock -x 9
+  LABNOW_LOCK_HELD=true
+  # Repeat every path/canonical check after lock acquisition. This closes the
+  # pre-lock check-to-use window before any config or state write occurs.
+  labnow_assert_trusted_path "$LABNOW_CONFIG_ROOT" "$LABNOW_MANAGED_STATE_DIR"
+  labnow_assert_trusted_path "$LABNOW_MANAGED_STATE_DIR" "$lock_path"
+  labnow_assert_runtime_status_path
+  "$@"
+  labnow_release_config_lock
+}
+
 labnow_capabilities() {
   jq -n --arg adapter_id "$LABNOW_ADAPTER_ID" --arg adapter_version "$LABNOW_ADAPTER_VERSION" --arg contract_version "$LABNOW_CONTRACT_VERSION" \
     '{adapter_id:$adapter_id, adapter_version:$adapter_version, supported_contract_versions:[$contract_version], supported_protocols:["openai_compatible"], supports_reload:false}'
@@ -248,9 +407,9 @@ labnow_adapter_dispatch() {
   local action="${1:-}"
   case "$action" in
     capabilities) labnow_capabilities ;;
-    apply) labnow_adapter_apply ;;
-    probe) labnow_adapter_probe ;;
-    remove) labnow_adapter_remove ;;
+    apply) labnow_with_config_lock labnow_adapter_apply ;;
+    probe) labnow_with_config_lock labnow_adapter_probe ;;
+    remove) labnow_with_config_lock labnow_adapter_remove ;;
     *) labnow_die "USAGE" ;;
   esac
 }
