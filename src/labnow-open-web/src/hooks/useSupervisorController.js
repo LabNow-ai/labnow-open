@@ -94,6 +94,20 @@ export function useSupervisorController() {
     [startProgram, stopProgram]
   );
 
+  const startPrograms = useCallback(async (names) => {
+    const { ok } = await api.startPrograms(names);
+    if (!ok) return { ok: false };
+    names.forEach((n) => patchProgramState(n, "Running"));
+    return { ok: true };
+  }, [api, patchProgramState]);
+
+  const stopPrograms = useCallback(async (names) => {
+    const { ok } = await api.stopPrograms(names);
+    if (!ok) return { ok: false };
+    names.forEach((n) => patchProgramState(n, "Stopped"));
+    return { ok: true };
+  }, [api, patchProgramState]);
+
   const startSelectedPrograms = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
       return { ok: false, reason: "empty_selection" };
@@ -135,6 +149,8 @@ export function useSupervisorController() {
     startProgram,
     stopProgram,
     restartProgram,
+    startPrograms,
+    stopPrograms,
     startSelectedPrograms,
     stopSelectedPrograms,
     reloadSupervisor,

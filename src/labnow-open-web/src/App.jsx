@@ -31,56 +31,7 @@ import {
 } from "@carbon/icons-react";
 import { useSupervisorController } from "./hooks/useSupervisorController";
 import { buildHomePath, buildWorkspacePath } from "./utils/runtimeBase";
-
-const PROGRAM_DEFINITIONS = {
-  caddy: { displayName: "Caddy Server", hidden: true },
-  jupyter: {
-    displayName: "JupyterLab",
-    link: "/lab",
-    logo: "logo-jupyter.svg",
-    description:
-      "Interactive notebooks for Python and data workflows. Great for exploration and quick experiments.",
-  },
-  vscode: {
-    displayName: "VS Code",
-    link: "/vscode",
-    logo: "logo-vscode.svg",
-    description:
-      "A full-featured code editor in your browser. Edit files, run terminals, and manage projects.",
-  },
-  rserver: {
-    displayName: "R-Studio",
-    link: "/rserver",
-    logo: "logo-rserver.svg",
-    description:
-      "RStudio Server for R development and analysis. Build scripts, run models, and visualize results.",
-  },
-  rshiny: {
-    displayName: "R Shiny",
-    link: "/rshiny",
-    logo: "logo-rshiny.svg",
-    description:
-      "Run Shiny applications for interactive dashboards. Useful for sharing data apps with your team.",
-  },
-  openclaw: {
-    displayName: "OpenClaw",
-    link: "/openclaw/",
-    logo: "logo-openclaw.svg",
-    description:
-      "A managed agent workspace with model access supplied through the LabNow runtime.",
-  },
-  "hermes-gateway": {
-    displayName: "Hermes Gateway",
-    hidden: true,
-  },
-  "hermes-dashboard": {
-    displayName: "Hermes",
-    link: "/hermes/",
-    logo: "logo-hermes.svg",
-    description:
-      "An agent workspace for managing sessions, skills, configurations, and plans.",
-  },
-};
+import PROGRAM_DEFINITIONS, { resolveProgramNames } from "./api/programDefinitions";
 
 function NotificationBar({ notice, onClose }) {
   if (!notice) {
@@ -107,6 +58,8 @@ export default function App() {
     startProgram,
     stopProgram,
     restartProgram,
+    startPrograms,
+    stopPrograms,
     reloadSupervisor,
     shutdownSupervisor,
     isRunningState,
@@ -137,8 +90,7 @@ export default function App() {
     [programs],
   );
   const visiblePrograms = useMemo(
-    () =>
-      programs.filter((program) => !programMetaByName[program.name]?.hidden),
+    () => programs.filter((program) => !programMetaByName[program.name]?.hidden),
     [programMetaByName, programs],
   );
 
@@ -147,14 +99,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!notice) {
-      return undefined;
-    }
-
-    const timer = setTimeout(() => {
-      setNotice(null);
-    }, 4000);
-
+    if (!notice) { return undefined; }
+    const timer = setTimeout(() => { setNotice(null); }, 4000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -166,7 +112,10 @@ export default function App() {
   }, [isDarkMode]);
 
   const handleStartProgram = async (name) => {
-    const result = await startProgram(name);
+    const names = resolveProgramNames(name);
+    const result = names.length > 1
+      ? await startPrograms(names)
+      : await startProgram(name);
     if (!result.ok) {
       pushNotice("error", "Failed to start program", name);
       return;
@@ -175,7 +124,18 @@ export default function App() {
   };
 
   const handleRestartProgram = async (name) => {
-    const result = await restartProgram(name);
+    const names = resolveProgramNames(name);
+    let result;
+    if (names.length > 1) {
+      result = await stopPrograms(names);
+      if (!result.ok) {
+        pushNotice("error", "Failed to stop program", name);
+        return;
+      }
+      result = await startPrograms(names);
+    } else {
+      result = await restartProgram(name);
+    }
     if (!result.ok) {
       pushNotice("error", "Failed to restart program", name);
       return;
@@ -183,22 +143,12 @@ export default function App() {
     pushNotice("success", "Program restarted", name);
   };
 
-  const openStopConfirm = (name) => {
-    setConfirm({ open: true, type: "stop", name });
-  };
-
-  const openReloadConfirm = () => {
-    setConfirm({ open: true, type: "reload", name: "" });
-  };
-
-  const openShutdownConfirm = () => {
-    setConfirm({ open: true, type: "shutdown", name: "" });
-  };
+  const openStopConfirm = (name) => { setConfirm({ open: true, type: "stop", name }); };
+  const openReloadConfirm = () => { setConfirm({ open: true, type: "reload", name: "" }); };
+  // const openShutdownConfirm = () => { setConfirm({ open: true, type: "shutdown", name: "" }); };
 
   const closeConfirm = () => {
-    if (confirmBusy) {
-      return;
-    }
+    if (confirmBusy) { return; }
     setConfirm({ open: false, type: null, name: "" });
   };
 
@@ -206,7 +156,10 @@ export default function App() {
     setConfirmBusy(true);
     try {
       if (confirm.type === "stop") {
-        const result = await stopProgram(confirm.name);
+        const names = resolveProgramNames(confirm.name);
+        const result = names.length > 1
+          ? await stopPrograms(names)
+          : await stopProgram(confirm.name);
         if (!result.ok) {
           pushNotice("error", "Failed to stop program", confirm.name);
         } else {
@@ -270,10 +223,7 @@ export default function App() {
           </HeaderName>
           <HeaderGlobalBar>
             <Toggletip>
-              <ToggletipButton
-                className="header-toggletip-button"
-                label="Show API Base information"
-              >
+              <ToggletipButton className="header-toggletip-button" label="Show API Base information">
                 <Information size={20} />
               </ToggletipButton>
               <ToggletipContent>
@@ -290,14 +240,9 @@ export default function App() {
               {isDarkMode ? <Light size={20} /> : <Moon size={20} />}
             </HeaderGlobalAction>
             <HeaderGlobalAction
-              aria-label="Open documentation"
-              tooltipAlignment="end"
+              aria-label="Open documentation" tooltipAlignment="end"
               onClick={() =>
-                window.open(
-                  "https://doc.labnow.ai",
-                  "_blank",
-                  "noopener,noreferrer",
-                )
+                window.open("https://doc.labnow.ai", "_blank", "noopener,noreferrer")
               }
             >
               <DocumentExport size={20} />
@@ -347,10 +292,7 @@ export default function App() {
                 const programLink = buildWorkspacePath(programMeta?.link);
                 const programLogo = programMeta?.logo || "";
                 const programDescription = programMeta?.description || "";
-                const programLinkEnabled =
-                  String(program.statename || "")
-                    .trim()
-                    .toLowerCase() === "running";
+                const programLinkEnabled = String(program.statename || "").trim().toLowerCase() === "running";
                 const programTooltip = programLinkEnabled
                   ? "Open the program in new browser tab"
                   : "Please start the program first to use it!";
@@ -368,9 +310,7 @@ export default function App() {
                     </Link>
                   ) : (
                     <span
-                      className={
-                        programLink ? "program-card-title-disabled" : ""
-                      }
+                      className={ programLink ? "program-card-title-disabled" : "" }
                       title={programTooltip}
                     >
                       {programLabel}
@@ -507,7 +447,7 @@ export default function App() {
               title="labnow.ai"
             >
               <Home size={18} />
-              <span>LabNow.ai</span>
+              <span>LabNow®</span>
             </a>
 
             <a

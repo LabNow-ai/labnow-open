@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-ACTION="${1:-up}"
+
+BASE_APP_PORT=24000
+BASE_WEB_PORT=34000
 
 USERNAME="$(whoami)"
 USERID="$(id -u)"
+ACTION="${1:-up}"
 
-
-BASE_APP_PORT=20000
-BASE_WEB_PORT=30000
 export PORT_APP=$((BASE_APP_PORT + USERID))
 export PORT_WEB=$((BASE_WEB_PORT + USERID))
 export PROJECT_NAME="dev-labnow-open-${USERNAME}"
@@ -72,14 +72,14 @@ case "$ACTION" in
     ;;
   enter)
     echo "↩️ Entering into development container:"
-    docker exec -it $CONTAINER_NAME bash
+    docker exec -it "$CONTAINER_NAME" bash
     ;;
   logs)
     echo "🕵 Attach to container for log inspection:"
     docker-compose -f "$COMPOSE" -p "$PROJECT_NAME" logs -f
     ;;
   *)
-    echo "Usage: $0 [up|down|restart|logs]"
+    echo "Usage: $0 [up|down|restart|enter|logs]"
     exit 1
     ;;
 esac

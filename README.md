@@ -6,7 +6,7 @@
 [![Visit Images on Quay.io](https://img.shields.io/badge/Quay.io-Images-green)](https://quay.io/organization/labnow)
 [![Visit Images on DockerHub](https://img.shields.io/badge/DockerHub-Images-green)](https://hub.docker.com/u/LabNow)
 
-Please generously STAR★ our project or donate to us!
+Please generously STAR⭐️ our project or donate to us!
 [![GitHub Stars](https://img.shields.io/github/stars/LabNow-ai/labnow-open.svg?label=Stars)](https://github.com/LabNow-ai/labnow-open/stargazers)
 
 Discussion and contributions are welcome:
@@ -14,20 +14,39 @@ Discussion and contributions are welcome:
 [![Open an Issue on GitHub](https://img.shields.io/github/issues/LabNow-ai/labnow-open)](https://github.com/LabNow-ai/labnow-open/issues)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LabNow-ai/labnow-open)
 
+> 中文文档：[doc/README-cn.md](doc/README-cn.md)
+
 ---
 
-`LabNow Open` 是一个开源的容器化 AI/Data 工作空间项目，目标是让你用尽可能少的环境配置，快速得到可用的研发环境与工具门户。
+LabNow Open is an open-source, containerized AI/data science workspace. It bundles a lightweight **Web Console** that lets you manage and launch common data science services — all from a single browser tab, with minimal setup.
 
-项目内置了一个轻量 Web Console，用于管理和跳转常用数据科学服务，包含：
+## What's Included
 
-- JupyterLab
-- VS Code (code-server)
-- RStudio Server
-- Shiny Server
+- **JupyterLab** — interactive notebooks and data exploration
+- **VS Code** (code-server) — full-featured code editor in the browser
+- **RStudio Server** — R development environment
+- **Shiny Server** — interactive R web applications
+- **Hermes** — gateway and dashboard for AI tool orchestration
+- **OpenClaw** — AI agent platform
 
-## 快速开始（直接使用现成镜像）
+All services run behind a unified **Caddy** reverse proxy on port 80, managed by **supervisord** for process lifecycle control.
 
-如果你只想快速体验，建议直接运行镜像：
+## Image Variants
+
+All variants are built from a single [Dockerfile](src/labnow-open.Dockerfile) and differ only in which base image they layer on top of:
+
+| Image Tag | Base Image | What It Contains |
+|---|---|---|
+| `labnow-open-dev` | `developer:latest` | Minimal dev tools + Web Console |
+| `labnow-open-data-science` | `data-science-dev:latest` | Full data science stack (Python, R, Jupyter) |
+| `labnow-open-hermes` | `hermes:latest` | Hermes gateway + dashboard |
+| `labnow-open-openclaw` | `openclaw:latest` | OpenClaw AI agent platform |
+
+Images are published on both [Quay.io](https://quay.io/organization/labnow) and [Docker Hub](https://hub.docker.com/u/LabNow).
+
+## Quick Start
+
+Run the full data science variant with a single command:
 
 ```bash
 docker run --rm -it \
@@ -36,4 +55,17 @@ docker run --rm -it \
   quay.io/labnow/labnow-open-data-science:latest
 ```
 
-启动后访问：`http://localhost:8888/`
+Then open **http://localhost:8888/** in your browser. The Web Console will show all available services — click any card to launch it.
+
+### Other Variants
+
+```bash
+# Minimal developer image
+docker run --rm -it -p 8888:80 quay.io/labnow/labnow-open-dev:latest
+
+# With Hermes gateway
+docker run --rm -it -p 8888:80 quay.io/labnow/labnow-open-hermes:latest
+
+# With OpenClaw agent platform
+docker run --rm -it -p 8888:80 quay.io/labnow/labnow-open-openclaw:latest
+```
