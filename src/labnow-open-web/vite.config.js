@@ -22,6 +22,11 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [react()],
+    build: {
+      // Carbon emits @position-try rules that lightningcss 1.33.0 cannot parse.
+      // Keep production CSS minification enabled with Vite's esbuild alternative.
+      cssMinify: "esbuild",
+    },
     server: {
       proxy: {
         "/api": {
