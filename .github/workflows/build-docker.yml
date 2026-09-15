@@ -12,17 +12,12 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
 
-permissions:
-  contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
-  TZ: Asia/Shanghai
   BUILDKIT_PROGRESS: "plain"  # Full logs for CI build.
-  REGISTRY_SRC: ${{ vars.REGISTRY_SRC || 'docker.io' }} # For BASE_NAMESPACE of images: where to pull base images from, docker.io or other source registry URL.
   REGISTRY_DST: ${{ vars.REGISTRY_DST || 'quay.io' }} # For tags of built images: where to push images to, docker.io or other destination registry URL.
   # DOCKER_REGISTRY_USERNAME and DOCKER_REGISTRY_PASSWORD is required for docker image push, they should be set in CI secrets.
   DOCKER_REGISTRY_USERNAME: ${{ vars.DOCKER_REGISTRY_USERNAME }}
@@ -35,8 +30,9 @@ env:
   COMMIT_SHA: ${{ github.sha }} # COMMIT_SHA="$(git rev-parse --short HEAD)"
 
 jobs:
-  job-semgrep:
+  semgrep:
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     container:
       image: semgrep/semgrep:latest
     continue-on-error: true
@@ -51,58 +47,45 @@ jobs:
             --config p/javascript \
             --config p/react \
             --config p/owasp-top-ten \
-            --exclude-rule=dockerfile.security.missing-user.missing-user \
-            --exclude-rule=yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
-
-  job-developer:
-    name: "labnow-open-dev"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: |
-          source ./tool/tool.sh
-          build_image labnow-open-dev latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=developer:latest"
-          push_image  labnow-open-dev
-
-  job-data-science:
-    name: "labnow-open-data-science"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: |
-          source ./tool/tool.sh
-          build_image labnow-open-data-science latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=data-science-dev:latest"
-          push_image  labnow-open-data-science
+            --exclude-rule=dockerfile.security.missing-user.missing-user
 
   job-openclaw:
     name: "labnow-open-openclaw"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-openclaw latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=openclaw:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/openclaw:latest"
+      - if: github.event_name != 'pull_request'
+        run: |
+          source ./tool/tool.sh
           push_image  labnow-open-openclaw
 
   job-hermes:
     name: "labnow-open-hermes"
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - run: |
           source ./tool/tool.sh
           build_image labnow-open-hermes latest ./src/labnow-open.Dockerfile \
-            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=hermes:latest"
+            --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=labnow/hermes:latest"
+      - if: github.event_name != 'pull_request'
+        run: |
+          source ./tool/tool.sh
           push_image  labnow-open-hermes
 
 
   ## Sync all images in this build (listed by "names") to mirror registry.
-  job-sync-images:
-    needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
+  sync_images:
+    if: github.event_name != 'pull_request'
+    needs: ["job-openclaw", "job-hermes"]
     runs-on: ubuntu-latest
+    permissions: {"contents": "read", "pull-requests": "write"}
     steps:
       - uses: actions/checkout@v7
       - env:

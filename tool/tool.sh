@@ -2,7 +2,6 @@
 set -eux
 
 # If not executed in GitHub Action, run script in project root, and export the following 3 variables manually:
-# export REGISTRY_SRC='quay.io'            # For BASE_NAMESPACE of images: where to pull base images from, docker.io or other source registry URL.
 # export REGISTRY_DST='quay.io'            # For tags of built images: where to push images to, docker.io or other destination registry URL.
 # export CI_PROJECT_NAME='LabNow/lab-dev'
 
@@ -16,29 +15,29 @@ CI_PROJECT_SPACE=$(echo "${CI_PROJECT_BRANCH}" | cut -f1 -d'/')
 export CI_PROJECT_NAMESPACE="$(dirname ${CI_PROJECT_NAME})${NAMESPACE_SUFFIX}" ;
 
 export IMG_NAMESPACE=$(echo "${CI_PROJECT_NAMESPACE}" | awk '{print tolower($0)}')
-export IMG_PREFIX_SRC=$(echo "${REGISTRY_SRC:-"docker.io"}/${IMG_NAMESPACE}" | awk '{print tolower($0)}')
+export BASE_NAMESPACE="quay.io"
 export IMG_PREFIX_DST=$(echo "${REGISTRY_DST:-"docker.io"}/${IMG_NAMESPACE}" | awk '{print tolower($0)}')
 export TAG_SUFFIX="-$(git rev-parse --short HEAD)"
 
 echo "--------> CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
 echo "--------> DOCKER_IMG_NAMESPACE=${IMG_NAMESPACE}"
-echo "--------> DOCKER_IMG_PREFIX_SRC=${IMG_PREFIX_SRC}"
+echo "--------> BASE_NAMESPACE=${BASE_NAMESPACE}"
 echo "--------> DOCKER_IMG_PREFIX_DST=${IMG_PREFIX_DST}"
 echo "--------> DOCKER_TAG_SUFFIX=${TAG_SUFFIX}"
 
 
 build_image() {
     echo "$@" ;
-    IMG=$1; TAG=$2; FILE=$3; shift 3; VER=$(date +%Y.%m%d.%H%M)${TAG_SUFFIX}; WORKDIR="$(dirname $FILE)";
-    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${IMG_PREFIX_SRC}" "$@" "${WORKDIR}"
+    IMG=$1; TAG=$2; FILE=$3; shift 3; VER=$(date +%Y.%m%d.%H%M)${TAG_SUFFIX}; WORKDIR="$(pwd)";
+    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${BASE_NAMESPACE}" "$@" "${WORKDIR}"
     docker tag "${IMG_PREFIX_DST}/${IMG}:${TAG}" "${IMG_PREFIX_DST}/${IMG}:${VER}"
     echo "${IMG_PREFIX_DST}/${IMG}:${TAG}"
 }
 
 build_image_no_tag() {
     echo "$@" ;
-    IMG=$1; TAG=$2; FILE=$3; shift 3; WORKDIR="$(dirname $FILE)";
-    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${IMG_PREFIX_SRC}" "$@" "${WORKDIR}"
+    IMG=$1; TAG=$2; FILE=$3; shift 3; WORKDIR="$(pwd)";
+    docker build --compress --force-rm=true -t "${IMG_PREFIX_DST}/${IMG}:${TAG}" -f "$FILE" --build-arg "BASE_NAMESPACE=${BASE_NAMESPACE}" "$@" "${WORKDIR}"
     echo "${IMG_PREFIX_DST}/${IMG}:${TAG}"
 }
 

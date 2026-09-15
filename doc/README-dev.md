@@ -47,7 +47,7 @@ labnow-open/
 │   └── labnow-open-etc/          # Runtime configuration
 │       ├── supervisord.conf      # Process manager configuration
 │       ├── Caddyfile             # Reverse proxy routes
-│       └── CaddyRoutes/          # Per-service route snippets
+│       └── caddy/routes.d/       # APP_KIND-specific readiness route snippets
 ├── tool/
 │   ├── tool.sh                   # CI helper: build/push Docker images
 │   └── cicd/                     # Dev & staging Docker Compose files

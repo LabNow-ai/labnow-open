@@ -1,4 +1,0 @@
-# Proxy all other requests to a default backend server on port 8888
-handle {
-    reverse_proxy localhost:8888
-}
