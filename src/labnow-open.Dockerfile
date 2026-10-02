@@ -15,7 +15,7 @@ COPY ./labnow-open-web /tmp/labnow-open-web
 COPY ./labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
- && source /opt/utils/script-setup-core.sh && setup_node_pnpm 11 \
+ && source /opt/utils/script-setup-core.sh && setup_node_pnpm 12 \
  && cd /tmp/labnow-open-web \
  && export CI=true && export CARBON_TELEMETRY_DISABLED=1 && pnpm install --no-strict-peer-dependencies --ignore-scripts && pnpm run build \
  && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \
