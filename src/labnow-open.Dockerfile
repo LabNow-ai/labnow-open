@@ -47,8 +47,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/rserver.caddy  ) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/shiny.caddy    ) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/openclaw.caddy ) \
- && (type hermes       && echo "Skipping configure supervisord for hermes as already processed..."  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/hermes.caddy   ) \
- && (type selkies      && echo "Skipping selkies process as not implemented yet..."                 >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/selkies.caddy  ) \
+ && (type hermes       && echo "Skipping configure supervisord for hermes as already processed..."  || rm -f /opt/labnow-open/etc/CaddyRoutes/hermes.caddy   ) \
+ && (type selkies      && echo "Skipping selkies process as not implemented yet..."                 || rm -f /opt/labnow-open/etc/CaddyRoutes/selkies.caddy  ) \
  ## cleanup of any temporary or cache files to keep the image size down
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && source /opt/utils/script-utils.sh && install__clean

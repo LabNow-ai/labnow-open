@@ -104,6 +104,18 @@ pnpm run build      # Production build to dist/
 
 In dev mode, Vite proxies `/api` requests to `localhost:80`, so you can run the frontend standalone against a running backend.
 
+## 配置生成静态验证
+
+在已有开发环境、仓库根目录执行，无需安装额外依赖：
+
+```bash
+python3 -B -m unittest discover -s tool/tests -p 'test_*.py' -v
+```
+
+测试从 Dockerfile 提取配置生成片段，在临时目录中执行；命令可用性由替身控制，不调用真实应用。覆盖 Hermes/Selkies 有无组合、仓库模板与代表性继承配置的保持、路由处理及其他程序配置。构建提示只输出日志，不得追加到 `supervisord.conf`。
+
+这项验证不构建镜像或启动服务，标准 INI 解析通过也不等于 supervisor 完整语义、继承镜像或真实 Hermes 启动已通过。修改后仍需另行核验新制品。
+
 ## Building Docker Images Locally
 
 ```bash
