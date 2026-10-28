@@ -1,2 +1,3 @@
-# 固定原生 Hermes pyproject.toml 声明的模型 SDK；Python 3.13 基础镜像遗漏了条件依赖。
+# 固定原生Hermes声明的模型SDK和CLI依赖；Python3.13基镜像遗漏了这些条件依赖。
 openai==2.24.0
+prompt_toolkit==3.0.52

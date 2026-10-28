@@ -241,3 +241,5 @@ OpenClaw原生镜像通过已校验的 `install_openclaw_guard.package_for_entry
 普通模式和自持Key使用原guard选项；未把生产fetch伪装成测试mock，也未关闭原生SSRF。
 Hermes另有真实Agent与真实SDK的离线发送自动化，低层响应为合成SSE，不作真实Console/Provider验收。
 Agent自身任务恢复可能发起独立请求，每次仍需Console当前授权/预算；不承诺所有Agent/Provider全局exactly-once。
+
+Hermes固定原生CLI还要求 `prompt_toolkit==3.0.52`；它与OpenAI SDK一样在原生声明中受Python>=3.14标记限制，实际3.13镜像缺失。仅显式hermes消费者构建补齐并核对这两个版本，新增真实CLI模块导入测试；Agent模块成功不能替代完整CLI依赖验证，运行时不下载。

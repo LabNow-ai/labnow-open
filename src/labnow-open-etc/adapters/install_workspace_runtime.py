@@ -27,12 +27,12 @@ def prepare_sdk(adapter, directory):
         return
     # 固定源码声明来自当前已校验的原生镜像。上游版本变化必须重新核实。
     manifest = Path("/opt/hermes/pyproject.toml").read_text()
-    if '"openai==2.24.0;' not in manifest:
+    if any(dependency not in manifest for dependency in ['"openai==2.24.0;', '"prompt_toolkit==3.0.52;']):
         raise RuntimeError("原生Hermes SDK声明变化，停止自动装配。")
     interpreter = _hermes_python()
     subprocess.run([interpreter, "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir",
                     "-r", str(Path(directory) / "requirements-workspace-hermes.txt")], check=True)
-    subprocess.run([interpreter, "-c", "import openai,httpx; assert openai.__version__ == '2.24.0'"], check=True)
+    subprocess.run([interpreter, "-c", "import openai,httpx,prompt_toolkit; assert openai.__version__ == '2.24.0' and prompt_toolkit.__version__ == '3.0.52'"], check=True)
 
 
 def install(adapter, *, directory=None, script_path=None, purelibs=None):
