@@ -1,0 +1,2 @@
+# 固定原生 Hermes pyproject.toml 声明的模型 SDK；Python 3.13 基础镜像遗漏了条件依赖。
+openai==2.24.0

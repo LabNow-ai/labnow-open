@@ -198,3 +198,35 @@ All variants are built from a single [Dockerfile](../src/labnow-open.Dockerfile)
 | `labnow-open-data-science` | `data-science-dev:latest` | Full data science stack (Python, R, Jupyter) |
 | `labnow-open-hermes` | `hermes:latest` | Hermes gateway + dashboard |
 | `labnow-open-openclaw` | `openclaw:latest` | OpenClaw AI agent platform |
+
+
+## 个人 Workspace 平台模型消费者
+
+新合同为 `personal-workspace-v1`，镜像默认不启用。构建时显式设置
+`WORKSPACE_IDENTITY_ADAPTER=hermes` 或 `openclaw`；装配器核实固定原生启动脚本后写入能力标签，
+Launcher 仍须核对主目录允许的镜像别名、不可变 image ID 与标签。其他镜像的 adapter 标签为空，不能用于本合同。
+本仓保留多阶段 Dockerfile、原有前端和启动方式；运行配置复制移到前端构建之后以复用缓存。
+
+原生配置只保存 `labnow-runtime` 静态标记。真正模型请求发送前，Python HTTPX 事件钩子或 Node fetch 适配
+从只读系统目录 `/etc/labnow` 读取当前运行身份，固定 HTTPS Console 目标与 models/chat 路径，直接使用规范尾斜线，
+拒绝重定向、SDK重放和不可用身份。原生SDK即使缓存配置，也不能固定使用旧身份；自持 Key 和普通配置保留。
+Console 每次仍核验当前 Casdoor、活跃实例及资源权限，镜像文件不能替代服务端授权。
+
+Launcher 提供 root 控制的 `workspace-model.json`、`openclaw-managed-identity.json` 及0400身份文件，目录只读挂载；
+Hermes另有只读 `/etc/hermes` 原生 managed 配置。身份最长300秒，每60秒更新；失败不延长期限。
+Hermes构建以实际命令shebang定位Python，补齐固定上游声明的 `openai==2.24.0`，安装进该解释器的 `.pth`，
+不在运行时下载依赖。OpenClaw通过Launcher的固定 `NODE_OPTIONS --import` 在SDK加载前装配发送适配。
+启动装配只在 `LABNOW_RUN_MANAGED=1` 时执行，healthcheck不读取身份；不覆盖自持同名provider冲突。
+
+开发环境验证入口：
+
+```bash
+node --test tool/tests/*.test.mjs
+python3 -B -m unittest discover -s tool/tests -v
+```
+
+Hermes原生镜像使用其CLI实际解释器执行Python入口，并要求所有SDK用例运行、无跳过。
+OpenClaw原生镜像通过已校验的 `install_openclaw_guard.package_for_entry()` 定位真实软件包，
+设置测试变量 `NATIVE_OPENCLAW_PACKAGE_JSON` 为其 `package.json` 后执行Node入口；该变量仅供测试。
+普通开发容器缺少原生依赖时明确跳过，不作为真实调用证据。
+新镜像、原生SDK自动化及配置校验仍不能替代真实Launcher创建、Console签发、模型调用和停止/撤权验收。
