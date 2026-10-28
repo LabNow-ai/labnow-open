@@ -50,6 +50,8 @@ def install(adapter, *, directory=None, script_path=None, purelibs=None):
     for file in ["workspace_bootstrap.py", "workspace_transport.py", "workspace_transport.mjs", "openclaw_web_guard.mjs"]:
         if not (directory / file).is_file():
             raise RuntimeError("平台模型镜像适配源不完整。")
+    if adapter == "openclaw":
+        subprocess.run([sys.executable, str(directory / "install_openclaw_transport.py")], check=True)
     if adapter == "hermes":
         if purelibs is None:
             interpreter = _hermes_python()

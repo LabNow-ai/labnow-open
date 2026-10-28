@@ -230,3 +230,14 @@ OpenClaw原生镜像通过已校验的 `install_openclaw_guard.package_for_entry
 设置测试变量 `NATIVE_OPENCLAW_PACKAGE_JSON` 为其 `package.json` 后执行Node入口；该变量仅供测试。
 普通开发容器缺少原生依赖时明确跳过，不作为真实调用证据。
 新镜像、原生SDK自动化及配置校验仍不能替代真实Launcher创建、Console签发、模型调用和停止/撤权验收。
+
+
+### OpenClaw 原生dispatcher通道
+
+固定2026.9.8的原生guard在使用DNS钉扎dispatcher时会选择独立Undici实现，单独替换全局fetch不能覆盖模型出口。
+`install_openclaw_transport.py` 在全局/项目两份原生CLI中接入已有 `fetchImpl` 槽，仅对托管身份启用，
+保留原生SSRF/DNS钉扎/dispatcher、代理、TLS及截止；显式限制0次redirect。适配发送URL和新的init，
+保留dispatcher与取消信号，真实短期JWT不写回原始SDK参数或原生捕获器。三个固定依赖SHA改变时停止构建。
+普通模式和自持Key使用原guard选项；未把生产fetch伪装成测试mock，也未关闭原生SSRF。
+Hermes另有真实Agent与真实SDK的离线发送自动化，低层响应为合成SSE，不作真实Console/Provider验收。
+Agent自身任务恢复可能发起独立请求，每次仍需Console当前授权/预算；不承诺所有Agent/Provider全局exactly-once。

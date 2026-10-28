@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
-import { createWorkspaceFetch, SENTINEL } from "../../src/labnow-open-etc/adapters/workspace_transport.mjs";
+import { createWorkspaceFetch, workspaceGuardedFetchOptions, SENTINEL } from "../../src/labnow-open-etc/adapters/workspace_transport.mjs";
 
 const packageFile = process.env.NATIVE_OPENCLAW_PACKAGE_JSON;
 const native = { skip: !packageFile && "需在固定原生OpenClaw镜像内提供其package.json路径" };
@@ -47,4 +47,27 @@ test("原生SDK自持Key和目标保留且不读取平台身份", native, async 
   await client.chat.completions.create({ ...payload, model: "own" });
   assert.equal(f.reads(), 0);assert.equal(f.calls[0].headers.get("authorization"), "Bearer fixture-own");
   assert.equal(f.calls[0].url, "https://own.invalid/v1/chat/completions");
+});
+
+
+test("原生guard显式通道保留DNS钉扎且只发送一次规范请求",native,async()=>{
+ const previous=process.env.LABNOW_RUN_MANAGED;process.env.LABNOW_RUN_MANAGED="1";
+ try {
+  const root=new URL(".",pathToFileURL(packageFile));const {i:guard}=await import(new URL("dist/fetch-guard-BulPh3pN.mjs",root));
+  const target="https://8.8.8.8/console/api/token/runtime/v1";let calls=0;
+  const send=async(input,init)=>{calls++;assert.ok(init.dispatcher);assert.equal(input,target+"/chat/completions/");assert.equal(init.headers.get("authorization"),"Bearer fixture-current");return new Response("fixture");};
+  const opts={url:target+"/chat/completions",init:{method:"POST",headers:{authorization:"Bearer "+SENTINEL},body:"{}"},capture:false};
+  const result=await guard(workspaceGuardedFetchOptions(opts,send,{read(){return{token:"fixture-current",baseUrl:target};}}));
+  assert.equal(await result.response.text(),"fixture");await result.release();assert.equal(calls,1);
+ } finally {if(previous===undefined)delete process.env.LABNOW_RUN_MANAGED;else process.env.LABNOW_RUN_MANAGED=previous;}
+});
+test("原生guard的跨来源redirect在第一次响应后停止",native,async()=>{
+ const previous=process.env.LABNOW_RUN_MANAGED;process.env.LABNOW_RUN_MANAGED="1";
+ try {
+  const root=new URL(".",pathToFileURL(packageFile));const {i:guard}=await import(new URL("dist/fetch-guard-BulPh3pN.mjs",root));
+  const target="https://8.8.8.8/console/api/token/runtime/v1";let calls=0;
+  const send=async()=>{calls++;return new Response(null,{status:308,headers:{location:"https://foreign.invalid/collect"}});};
+  await assert.rejects(guard(workspaceGuardedFetchOptions({url:target+"/models",init:{headers:{authorization:"Bearer "+SENTINEL}},capture:false},send,{read(){return{token:"fixture-current",baseUrl:target};}})));
+  assert.equal(calls,1);
+ } finally {if(previous===undefined)delete process.env.LABNOW_RUN_MANAGED;else process.env.LABNOW_RUN_MANAGED=previous;}
 });

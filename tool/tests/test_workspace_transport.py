@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 import unittest
 from unittest.mock import patch
 
@@ -62,8 +63,7 @@ class SourceTests(unittest.TestCase):
   with self.assertRaises(m.WorkspaceTransportError):self.source.read()
 
 
-@unittest.skipUnless(importlib.util.find_spec("httpx") and importlib.util.find_spec("openai"),"需固定原生Hermes镜像的httpx/OpenAI SDK")
-class NativeSDKTests(unittest.TestCase):
+class NativeSDKFixture:
  def setUp(self):
   import httpx,openai
   self.httpx,self.openai=httpx,openai
@@ -82,6 +82,10 @@ class NativeSDKTests(unittest.TestCase):
   return self.httpx.Response(200,json={"id":"fixture","object":"chat.completion","created":1,"model":"labnow-managed","choices":[{"index":0,"message":{"role":"assistant","content":"fixture"},"finish_reason":"stop"}]})
  def client(self,key=m.SENTINEL,base=BASE,**options):
   return self.openai.OpenAI(api_key=key,base_url=base,http_client=self.httpx.Client(transport=self.httpx.MockTransport(self.handle)),**options)
+
+
+@unittest.skipUnless(importlib.util.find_spec("httpx") and importlib.util.find_spec("openai"),"需固定原生Hermes镜像的httpx/OpenAI SDK")
+class NativeSDKTests(NativeSDKFixture, unittest.TestCase):
  def test_same_native_sdk_instance_adopts_new_token_without_changing_api_key(self):
   with self.client(max_retries=7) as client:
    self.assertEqual(client.max_retries,0)
@@ -115,6 +119,39 @@ class NativeSDKTests(unittest.TestCase):
   with self.httpx.Client(transport=self.httpx.MockTransport(self.handle)) as client:
    with self.assertRaises(m.WorkspaceTransportError):client.get(BASE+"/models",headers={"authorization":"Bearer "+m.SENTINEL,"x-stainless-retry-count":"1"})
   self.assertFalse(self.calls)
+
+
+@unittest.skipUnless(all(importlib.util.find_spec(x) for x in ["httpx", "openai", "run_agent"]), "需固定原生Hermes Agent及SDK")
+class NativeAgentTests(NativeSDKFixture, unittest.TestCase):
+ def test_native_agent_adopts_installed_hook_before_real_sdk_dispatch(self):
+  with tempfile.TemporaryDirectory(dir="/run") as home, patch.dict(os.environ,{"HOME":home,"HERMES_HOME":home+"/hermes"}):
+   import socket
+   import run_agent
+   observed=[]
+   def dispatch(client,request):
+    if request.method!="POST" or request.url.path.rstrip("/")!=urlsplit(BASE).path+"/chat/completions":
+     return self.httpx.Response(403,request=request,json={"error":{"message":"fixture only"}},headers={"x-should-retry":"false"})
+    body=json.loads(request.content)
+    observed.append({"url":str(request.url),"auth":request.headers.get("authorization"),"body":body})
+    base={"id":"fixture","object":"chat.completion.chunk","created":1,"model":"labnow-managed"}
+    frames=[{**base,"choices":[{"index":0,"delta":{"role":"assistant","content":"fixture"},"finish_reason":None}]},
+            {**base,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]},
+            {**base,"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}]
+    if body.get("stream"):
+     data="".join("data: "+json.dumps(v)+"\n\n" for v in frames)+"data: [DONE]\n\n"
+     return self.httpx.Response(200,request=request,headers={"content-type":"text/event-stream"},content=data.encode())
+    return self.httpx.Response(200,request=request,json={"id":"fixture","object":"chat.completion","created":1,"model":"labnow-managed","choices":[{"index":0,"message":{"role":"assistant","content":"fixture"},"finish_reason":"stop"}]})
+   def refuse_network(*args,**kwargs):raise OSError("fixture-network-denied")
+   with patch.object(self.httpx.Client,"_send_single_request",dispatch),patch.object(socket.socket,"connect",refuse_network):
+    agent=run_agent.AIAgent(base_url=BASE,api_key=m.SENTINEL,provider="custom",api_mode="chat_completions",model="labnow-managed",max_iterations=1,max_tokens=16,quiet_mode=True,verbose_logging=False,enabled_toolsets=[],skip_context_files=True,skip_memory=True,skip_background_review=True,run_budget_seconds=10)
+    result=agent.run_conversation("Reply fixture.")
+   self.assertEqual(result.get("final_response"),"fixture")
+   self.assertEqual(len(observed),1)
+   self.assertEqual(observed[0]["auth"],"Bearer "+self.value)
+   self.assertTrue(observed[0]["url"].endswith("/chat/completions/"))
+   self.assertEqual(observed[0]["body"].get("stream_options"),{"include_usage":True})
+   self.assertEqual(agent.api_key,m.SENTINEL)
+
 
 
 if __name__=="__main__":unittest.main()

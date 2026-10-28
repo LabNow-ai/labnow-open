@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createWorkspaceFetch, createWorkspaceSource, SENTINEL } from "../../src/labnow-open-etc/adapters/workspace_transport.mjs";
+import { createWorkspaceFetch, createWorkspaceSource, workspaceGuardedFetchOptions, SENTINEL } from "../../src/labnow-open-etc/adapters/workspace_transport.mjs";
 
 const base = "https://console.invalid/console/api/token/runtime/v1";
 const header = Buffer.from(JSON.stringify({alg:"HS256",typ:"labnow-run+jwt",v:1})).toString("base64url");
@@ -73,4 +73,28 @@ test("读期间轮换失败关闭，不缓存授权成功",()=>{
  const f=sourceFixture();let n=0;
  const source=createWorkspaceSource({policy:{read(){return{...f.policy,digest:String(n++)};}},readDescriptor(){return{value:f.meta,encoded:Buffer.from("fixture")};},now:()=>100});
  assert.throws(()=>source.read());
+});
+
+
+test("原生槽保留dispatcher和取消信号，不把当前JWT写回SDK入参",async()=>{
+ const previous=process.env.LABNOW_RUN_MANAGED;process.env.LABNOW_RUN_MANAGED="1";
+ try {
+  const dispatcher={},abort=new AbortController();let sent,reads=0;
+  const headers=new Headers({authorization:"Bearer "+SENTINEL,"content-type":"application/json"});
+  const options={url:base+"/chat/completions",init:{method:"POST",headers,body,signal:abort.signal},policy:{allowedHostnames:["console.invalid"]},maxRedirects:4};
+  const prepared=workspaceGuardedFetchOptions(options,async(input,init)=>{sent={input,init};return new Response("ok");},{read(){reads++;return{token:token(),baseUrl:base};}});
+  assert.equal(prepared.maxRedirects,0);assert.equal(prepared.policy,options.policy);assert.notEqual(prepared,options);
+  const response=await prepared.fetchImpl(options.url,{...options.init,dispatcher});
+  assert.equal(response.status,200);assert.equal(reads,1);assert.equal(sent.init.dispatcher,dispatcher);
+  assert.equal(sent.init.headers.get("authorization"),"Bearer "+token());assert.equal(headers.get("authorization"),"Bearer "+SENTINEL);
+  assert.equal(await new Request(sent.input,sent.init).text(),body);abort.abort();assert.equal(sent.init.signal.aborted,true);
+ } finally {if(previous===undefined)delete process.env.LABNOW_RUN_MANAGED;else process.env.LABNOW_RUN_MANAGED=previous;}
+});
+test("原生普通模式和自持Key不改变原始guard选项",()=>{
+ const previous=process.env.LABNOW_RUN_MANAGED;
+ try {
+  const own={url:base,init:{headers:{authorization:"Bearer fixture-own"}}};
+  process.env.LABNOW_RUN_MANAGED="1";assert.equal(workspaceGuardedFetchOptions(own,()=>{}),own);
+  process.env.LABNOW_RUN_MANAGED="0";const marked={url:base,init:{headers:{authorization:"Bearer "+SENTINEL}}};assert.equal(workspaceGuardedFetchOptions(marked,()=>{}),marked);
+ } finally {if(previous===undefined)delete process.env.LABNOW_RUN_MANAGED;else process.env.LABNOW_RUN_MANAGED=previous;}
 });

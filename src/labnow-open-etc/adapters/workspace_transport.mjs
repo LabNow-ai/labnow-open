@@ -58,7 +58,7 @@ export function createWorkspaceFetch({ send = globalThis.fetch, source = createW
       if ((headers.get("x-stainless-retry-count") ?? "0") !== "0") return failure(409);
       for (const [key, value] of headers) if (key !== "authorization" && value.includes(HEADER)) return failure();
       const current = source.read(), base = new URL(current.baseUrl);
-      request = new Request(input, init);
+      request = new Request(input, init?.body == null ? init : { ...init, duplex: init.duplex ?? "half" });
       const target = new URL(request.url), route = target.pathname.replace(/\/$/, ""), prefix = base.pathname.replace(/\/$/, "");
       if (target.origin !== base.origin || target.username || target.password || target.search || target.hash ||
         !((request.method === "POST" && route === prefix + "/chat/completions") || (request.method === "GET" && route === prefix + "/models"))) return failure(403);
@@ -66,10 +66,25 @@ export function createWorkspaceFetch({ send = globalThis.fetch, source = createW
       const forwarded = new Request(target, request);
       forwarded.headers.set("authorization", "Bearer " + current.token);
       // 禁止原生fetch自动跟随任何重定向；网络故障也不触发SDK模型重放。
-      return await send(forwarded, { redirect: "error" });
+      return await send(target.toString(), {
+        ...init, method: forwarded.method, headers: forwarded.headers,
+        signal: forwarded.signal, redirect: "error",
+        ...(forwarded.body ? { body: forwarded.body, duplex: "half" } : { body: undefined }),
+      });
     } catch {
       return failure();
     }
+  };
+}
+
+/** 接入原生guarded fetch的显式槽，保留其DNS钉扎、dispatcher、代理和TLS。 */
+export function workspaceGuardedFetchOptions(options, send, source = undefined) {
+  if (process.env.LABNOW_RUN_MANAGED !== "1") return options;
+  const authorization = new Headers(options.init?.headers).get("authorization")?.replace(/^Bearer /i, "");
+  if (authorization !== SENTINEL && !authorization?.startsWith(HEADER)) return options;
+  return { ...options, maxRedirects: 0,
+    // 新函数必须不同于ambient global fetch，原生guard才保留显式dispatcher通道。
+    fetchImpl: createWorkspaceFetch({ send, ...(source ? { source } : {}) }),
   };
 }
 
