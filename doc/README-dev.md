@@ -136,6 +136,30 @@ python3 -B -m unittest discover -s tool/tests -p 'test_*.py' -v
 
 测试命令仍为上文 `unittest discover`。普通开发环境缺少 Hermes/FastAPI 时，原生组合用例会明确 skip；必须在固定运行依赖中执行这些用例，并以真实登录/配置 HTTP 验证，不能用 skip 或鉴权夹具证明原生鉴权支持。
 
+## OpenClaw 平台运行身份的管理接口保护
+
+OpenClaw 变体构建时，`install_openclaw_guard.py` 校验实际命令 shim、2026.9.8 软件包和三份原生源码的精确摘要，将 Open 自有保护接入 `secrets.resolve` 的结果出口。固定镜像内全局 CLI 和项目 CLI 两份副本均安装；未知版本或已有不同适配停止构建。原生 Gateway 鉴权、scope、Agent 内部秘密解析和 `secrets.reload` 不替换。
+
+托管启动必须设置仅由可信启动控制的 `LABNOW_RUN_MANAGED=1`，并准备直接父目录 root 所有、无组/其他写权限、非符号链接的两个固定系统文件：
+
+- `/etc/labnow/openclaw-managed-identity.json`：文件须由 root 所有，内容为`{"version":1,"protected_env":["LABNOW_RUN_API_KEY"]}`。
+- `/etc/labnow/openclaw-runtime-identity.json`：按原生 FileProvider 合同，文件须属于进程有效 UID、权限 `0400` 或 `0600`，仅包含名单对应的运行身份字段；实际值由可信启动写入，不放入镜像、构建参数、网页配置或日志。
+
+通过 root 控制的只读目录挂载提供 `/etc/labnow`；适配会依据已打开文件描述符的内核 mount id 核实该目录挂载为只读，不能只凭文件属主放行。可信控制端在目录内原子替换身份文件，不能采用固定单文件 bind 挂载后假设替换会自动可见。OpenClaw 原生 FileProvider 指向固定身份 JSON，并以相应 JSON pointer 引用；实际格式、签发和刷新属于 Console/Launcher 接线，不能用 Provider 长期 Key 代替运行身份。
+
+适配在每次管理回读前后重读系统策略，结合原生未解析配置、原生 SecretRef 识别和活跃快照定位受管引用。按来源路径拒绝回读，防止身份文件已更新而原生缓存仍保留旧值时漏出旧身份；文件别名和局部 JSON pointer 同样受保护。原生错误、diagnostics 和返回值另检查请求内已知受管值，不持久保存值副本。策略/来源消失、不可读、名单改变、快照无法分类或请求期间轮换时失败关闭。普通未绑定 Lab 保持原生行为，自持 Key 的合法读取与原生刷新继续可用。
+
+这层保护针对管理接口，不替代 Console 逐请求授权，也不承诺容器所有者/终端隔离、任意编码识别或完整 Agent 接线。运行身份采用用户已确认的最长 300 秒、Launcher 每 60 秒更新；产品签发与刷新是否已完成以 Governance 阶段验收为准，不能根据镜像含适配文件推定已接通。
+
+在实际开发容器运行：
+
+```bash
+node --test tool/tests/openclaw_web_guard.test.mjs
+python3 -m unittest discover -s tool/tests -v
+```
+
+Node 用例使用真实临时文件验证 root 所有权，要求在开发容器执行。单元测试不证明原生浏览器权限和快照合同；还需使用固定原生 CLI、真实 Control UI 和合成身份进行正反向验证。
+
 ## Building Docker Images Locally
 
 ```bash
