@@ -51,6 +51,7 @@ def install(adapter, *, directory=None, script_path=None, purelibs=None):
         if not (directory / file).is_file():
             raise RuntimeError("平台模型镜像适配源不完整。")
     if adapter == "openclaw":
+        subprocess.run([sys.executable, str(directory / "install_openclaw_plugin_compat.py")], check=True)
         subprocess.run([sys.executable, str(directory / "install_openclaw_transport.py")], check=True)
     if adapter == "hermes":
         if purelibs is None:

@@ -71,3 +71,24 @@ test("原生guard的跨来源redirect在第一次响应后停止",native,async()
   assert.equal(calls,1);
  } finally {if(previous===undefined)delete process.env.LABNOW_RUN_MANAGED;else process.env.LABNOW_RUN_MANAGED=previous;}
 });
+
+
+test("原生插件加载器使用公开SDK加载固定Lark入口", native, async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { spawnSync } = await import("node:child_process");
+  const require = createRequire("/opt/openclaw/plugins/openclaw-lark/package.json");
+  assert.equal(typeof require("openclaw/plugin-sdk/core").emptyPluginConfigSchema, "function");
+  const home = mkdtempSync("/run/native-plugin-");
+  const config = home + "/openclaw.json";
+  writeFileSync(config, JSON.stringify({ gateway: { mode: "local" }, plugins: { enabled: true, allow: ["openclaw-lark"], load: { paths: ["/opt/openclaw/plugins/openclaw-lark"] }, entries: { "openclaw-lark": { enabled: true } } } }));
+  try {
+    const env = { ...process.env, HOME: home, OPENCLAW_STATE_DIR: home, OPENCLAW_CONFIG_PATH: config };
+    delete env.LABNOW_RUN_MANAGED;
+    const result = spawnSync("openclaw", ["plugins", "list", "--json"], { env, encoding: "utf8", timeout: 60000 });
+    assert.equal(result.status, 0, result.stderr);
+    const value = JSON.parse(result.stdout.slice(result.stdout.indexOf("{")));
+    const plugin = value.plugins.find(value => value.id === "openclaw-lark");
+    assert.ok(plugin, "原生加载器必须实际列出目标插件");
+    assert.equal(plugin.status, "loaded", plugin.error);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});

@@ -243,3 +243,5 @@ Hermes另有真实Agent与真实SDK的离线发送自动化，低层响应为合
 Agent自身任务恢复可能发起独立请求，每次仍需Console当前授权/预算；不承诺所有Agent/Provider全局exactly-once。
 
 Hermes固定原生CLI还要求 `prompt_toolkit==3.0.52`；它与OpenAI SDK一样在原生声明中受Python>=3.14标记限制，实际3.13镜像缺失。仅显式hermes消费者构建补齐并核对这两个版本，新增真实CLI模块导入测试；Agent模块成功不能替代完整CLI依赖验证，运行时不下载。
+
+固定Lark2026.7.16入口仍引用已移除的SDK根路径；显式OpenClaw消费者构建先核验原生2026.9.8公开core导出及入口SHA，仅把emptyPluginConfigSchema所在的一处require改为 `openclaw/plugin-sdk/core`。不改SDK exports、不禁用/更新插件或改配置；未知版本拒绝构建。原生插件加载测试覆盖此入口，但不代表真实飞书渠道收发已验收。
