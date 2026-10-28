@@ -29,6 +29,10 @@ ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
+RUN if command -v hermes >/dev/null 2>&1; then \
+      python3 /opt/labnow-open/etc/adapters/install_hermes_guard.py /opt/hermes; \
+    fi
+
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  ## install Caddy and link the configuration files
  && (type caddy || (source /opt/utils/script-setup-net.sh && setup_caddy && echo "Caddy installed")) \
