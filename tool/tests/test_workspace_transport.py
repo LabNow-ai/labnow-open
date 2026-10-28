@@ -153,5 +153,37 @@ class NativeAgentTests(NativeSDKFixture, unittest.TestCase):
    self.assertEqual(agent.api_key,m.SENTINEL)
 
 
+ def test_native_terminal_tool_loop_has_standard_history(self):
+  # 固定原生Agent真实执行本地只读命令；模型响应为替身，不证明Provider运行R。
+  with tempfile.TemporaryDirectory(dir="/run") as home, patch.dict(os.environ,{"HOME":home,"HERMES_HOME":home+"/hermes","TERMINAL_BACKEND":"local"}):
+   import socket,run_agent
+   observed=[]
+   def dispatch(client,request):
+    self.assertEqual(request.method,"POST")
+    self.assertEqual(request.url.path.rstrip("/"),urlsplit(BASE).path+"/chat/completions")
+    body=json.loads(request.content);observed.append(body)
+    has_result=any(x.get("role")=="tool" for x in body["messages"])
+    self.assertIn("terminal",[x["function"]["name"] for x in body["tools"]])
+    call={"id":"call_fixture_1","type":"function","function":{"name":"terminal","arguments":json.dumps({"command":"printf HERMES_TOOL_OK","timeout":5})}}
+    delta={"role":"assistant","content":"HERMES_TOOL_OK"} if has_result else {"role":"assistant","tool_calls":[{"index":0,**call}]}
+    finish="stop" if has_result else "tool_calls"
+    base={"id":"fixture","object":"chat.completion.chunk","created":1,"model":"labnow-managed"}
+    if body.get("stream"):
+     events=[{**base,"choices":[{"index":0,"delta":delta,"finish_reason":None}]},{**base,"choices":[{"index":0,"delta":{},"finish_reason":finish}]},{**base,"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}]
+     data="".join("data: "+json.dumps(v)+"\n\n" for v in events)+"data: [DONE]\n\n"
+     return self.httpx.Response(200,request=request,headers={"content-type":"text/event-stream"},content=data.encode())
+    message={"role":"assistant","content":"HERMES_TOOL_OK"} if has_result else {"role":"assistant","content":None,"tool_calls":[call]}
+    return self.httpx.Response(200,request=request,json={"id":"fixture","object":"chat.completion","created":1,"model":"labnow-managed","choices":[{"index":0,"message":message,"finish_reason":finish}]})
+   def refuse_network(*args,**kwargs):raise OSError("fixture-network-denied")
+   with patch.object(self.httpx.Client,"_send_single_request",dispatch),patch.object(socket.socket,"connect",refuse_network):
+    agent=run_agent.AIAgent(base_url=BASE,api_key=m.SENTINEL,provider="custom",api_mode="chat_completions",model="labnow-managed",max_iterations=3,max_tokens=128,quiet_mode=True,verbose_logging=False,enabled_toolsets=["terminal"],skip_context_files=True,skip_memory=True,skip_background_review=True,run_budget_seconds=15)
+    result=agent.run_conversation("Run the terminal tool and report its result.")
+   self.assertEqual(len(observed),2)
+   self.assertEqual(result.get("final_response"),"HERMES_TOOL_OK")
+   results=[x for x in observed[1]["messages"] if x.get("role")=="tool"]
+   self.assertEqual(len(results),1)
+   self.assertEqual(set(results[0]),{"role","content","tool_call_id"})
+   self.assertIn("HERMES_TOOL_OK",results[0]["content"])
+
 
 if __name__=="__main__":unittest.main()
