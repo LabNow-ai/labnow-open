@@ -245,3 +245,7 @@ Agent自身任务恢复可能发起独立请求，每次仍需Console当前授�
 Hermes固定原生CLI还要求 `prompt_toolkit==3.0.52`；它与OpenAI SDK一样在原生声明中受Python>=3.14标记限制，实际3.13镜像缺失。仅显式hermes消费者构建补齐并核对这两个版本，新增真实CLI模块导入测试；Agent模块成功不能替代完整CLI依赖验证，运行时不下载。
 
 固定Lark2026.7.16入口仍引用已移除的SDK根路径；显式OpenClaw消费者构建先核验原生2026.9.8公开core导出及入口SHA，仅把emptyPluginConfigSchema所在的一处require改为 `openclaw/plugin-sdk/core`。不改SDK exports、不禁用/更新插件或改配置；未知版本拒绝构建。原生插件加载测试覆盖此入口，但不代表真实飞书渠道收发已验收。
+
+真实Agent还发现同一固定插件的两个CommonJS文件含import.meta语法，Node会转作ESM而拒绝exports。适配先核验两个文件SHA，再仅改为原生__dirname/__filename定位；不修改Token加密、读写或渠道策略。原生回归必须执行真实入口、版本模块和Token-store模块，plugins list的loaded状态单独不算模块执行通过。
+
+同一固定插件的reply-dispatcher引用已移除的channel-runtime路径；2026.9.8公开channel-reply-pipeline仍导出原有两个函数。适配核验该文件SHA与两个公开函数后只替换导入路径；全部待改文件预检成功后再写入，不恢复旧SDK根导出。

@@ -78,6 +78,16 @@ test("原生插件加载器使用公开SDK加载固定Lark入口", native, async
   const { spawnSync } = await import("node:child_process");
   const require = createRequire("/opt/openclaw/plugins/openclaw-lark/package.json");
   assert.equal(typeof require("openclaw/plugin-sdk/core").emptyPluginConfigSchema, "function");
+  const pipeline = require("openclaw/plugin-sdk/channel-reply-pipeline");
+  assert.equal(typeof pipeline.createReplyPrefixContext, "function");
+  assert.equal(typeof pipeline.createTypingCallbacks, "function");
+  // 必须执行真实CommonJS模块；plugins list的loaded登记不足以证明模块可执行。
+  const loaded = require("/opt/openclaw/plugins/openclaw-lark/index.js");
+  assert.equal(typeof (loaded.default ?? loaded).register, "function");
+  const version = require("/opt/openclaw/plugins/openclaw-lark/src/core/version.js");
+  assert.equal(version.getPluginVersion(), "2026.7.16");
+  assert.equal(version.getPlatform(), "linux");
+  require("/opt/openclaw/plugins/openclaw-lark/src/core/token-store.js");
   const home = mkdtempSync("/run/native-plugin-");
   const config = home + "/openclaw.json";
   writeFileSync(config, JSON.stringify({ gateway: { mode: "local" }, plugins: { enabled: true, allow: ["openclaw-lark"], load: { paths: ["/opt/openclaw/plugins/openclaw-lark"] }, entries: { "openclaw-lark": { enabled: true } } } }));
