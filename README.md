@@ -81,3 +81,12 @@ Hermes 镜像构建通过 `src/labnow-open-etc/adapters/build_hermes_web.py` 核
 
 
 Hermes 的Python3.13运行镜像还须按原生源码声明补齐 `websockets==15.0.1`。仅有Uvicorn并不证明支持WebSocket：没有协议实现时`AutoWebSocketsProtocol=None`，Dashboard Upgrade会被当作普通HTTP处理。`requirements-workspace-hermes.txt`及安装后的原生协议检测固定这一合同；`tool/tests/test_hermes_cli.py`会进行真实回环升级和消息收发，验证缺依赖的镜像失败、完整镜像通过，不调用模型。
+
+
+### OpenClaw 网页与原生代理配置
+
+显式装配平台消费者镜像时，`install_workspace_runtime.py` 校验固定启动脚本和 Caddy 路由版本，将默认 `trustedProxies` 收窄到同容器 Caddy 的回环地址，并通过 `openclaw_web_config.py` 设置原生 `gateway.controlUi.basePath`。Caddy 保留同一 Workspace 路径转发，覆盖带/不带尾斜杠的 WebSocket 入口；未知版本停止装配。浏览器身份继续由 Launcher 数据面逐请求交给 Console 核验，原生设备配对保持，不关闭验证。首次使用新浏览器时，按原生页面提示在该用户自己的 Gateway 容器批准明确的设备请求。
+
+路径适配在装配镜像的普通模式同样启用，不要求平台运行身份；原生 auth、Provider、自持 Key 及其他用户配置保留。通用未装配镜像的 Caddy 模板不受此装配步骤影响。Hermes 网页聊天还要求精确固定的 `websockets==15.0.1` 与 `ptyprocess==0.7.0`；回归分别覆盖真实 Uvicorn 升级/收发和原生 PtyBridge 子进程输入/输出，不以导入成功代替运行验证。
+
+相关回归：`tool/tests/test_openclaw_proxy_defaults.py`、`test_openclaw_web_config.py`、`test_hermes_cli.py`；Vite 路径合同使用 `node tool/tests/test_hermes_web_prefix.mjs` 单独执行，不能由仅匹配 `*.test.mjs` 的命令代替。
