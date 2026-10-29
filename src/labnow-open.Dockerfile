@@ -34,6 +34,7 @@ COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
 
 RUN if command -v hermes >/dev/null 2>&1; then \
       python3 /opt/labnow-open/etc/adapters/install_hermes_guard.py /opt/hermes; \
+      python3 /opt/labnow-open/etc/adapters/build_hermes_web.py /opt/hermes; \
     fi
 
 RUN if command -v openclaw >/dev/null 2>&1; then \

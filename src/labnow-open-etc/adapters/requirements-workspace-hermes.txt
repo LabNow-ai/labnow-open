@@ -2,3 +2,7 @@
 openai==2.24.0
 prompt_toolkit==3.0.52
 snowballstemmer==3.1.1
+# 原生前端的 WebSocket 握手需要该协议实现；沿用 Hermes 固定源码声明。
+websockets==15.0.1
+# 原生 Dashboard PTY 使用上游允许范围内的固定POSIX依赖。
+ptyprocess==0.7.0

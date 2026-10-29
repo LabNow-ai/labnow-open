@@ -69,3 +69,15 @@ docker run --rm -it -p 8888:80 quay.io/labnow/labnow-open-hermes:latest
 # With OpenClaw agent platform
 docker run --rm -it -p 8888:80 quay.io/labnow/labnow-open-openclaw:latest
 ```
+
+
+### Hermes 的 Lab 路径前缀构建
+
+固定 Hermes 版本的原生服务会按 `X-Forwarded-Prefix` 改写 HTML/CSS 并注入 `__HERMES_BASE_PATH__`。原构建中的懒加载 JS/CSS 仍指向站点根目录，不能用根目录公开静态资源绕过 Workspace 鉴权。
+
+Hermes 镜像构建通过 `src/labnow-open-etc/adapters/build_hermes_web.py` 核对原生配置摘要与 Vite 8.2.0，再加载 `hermes_vite_prefix.config.mjs` 重建。仅 JS 引用使用原生运行时前缀；HTML/CSS 保留原生改写。未知版本停止构建，不安装新依赖、不修改用户配置、Casdoor 或 LiteLLM。
+
+在构建后的 Hermes 镜像运行 `node /source/tool/tests/test_hermes_web_prefix.mjs` 可核对实际 Vite 配置的8种路径合同；仍需通过受保护的完整 Lab 路径验收聊天页及真实对话，不能用构建成功代替浏览器验证。
+
+
+Hermes 的Python3.13运行镜像还须按原生源码声明补齐 `websockets==15.0.1`。仅有Uvicorn并不证明支持WebSocket：没有协议实现时`AutoWebSocketsProtocol=None`，Dashboard Upgrade会被当作普通HTTP处理。`requirements-workspace-hermes.txt`及安装后的原生协议检测固定这一合同；`tool/tests/test_hermes_cli.py`会进行真实回环升级和消息收发，验证缺依赖的镜像失败、完整镜像通过，不调用模型。

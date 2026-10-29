@@ -27,12 +27,12 @@ def prepare_sdk(adapter, directory):
         return
     # 固定源码声明来自当前已校验的原生镜像。上游版本变化必须重新核实。
     manifest = Path("/opt/hermes/pyproject.toml").read_text()
-    if any(dependency not in manifest for dependency in ['"openai==2.24.0;', '"prompt_toolkit==3.0.52;', '"snowballstemmer==3.1.1;']):
+    if any(dependency not in manifest for dependency in ['"openai==2.24.0;', '"prompt_toolkit==3.0.52;', '"snowballstemmer==3.1.1;', '"websockets==15.0.1;']):
         raise RuntimeError("原生Hermes SDK声明变化，停止自动装配。")
     interpreter = _hermes_python()
     subprocess.run([interpreter, "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir",
                     "-r", str(Path(directory) / "requirements-workspace-hermes.txt")], check=True)
-    subprocess.run([interpreter, "-c", "import openai,httpx,prompt_toolkit,snowballstemmer; from importlib.metadata import version; assert version('snowballstemmer') == '3.1.1'; assert openai.__version__ == '2.24.0' and prompt_toolkit.__version__ == '3.0.52'"], check=True)
+    subprocess.run([interpreter, "-c", "import openai,httpx,prompt_toolkit,snowballstemmer,websockets,ptyprocess; assert ptyprocess.__version__ == '0.7.0'; from uvicorn.protocols.websockets.auto import AutoWebSocketsProtocol; assert AutoWebSocketsProtocol is not None; assert websockets.__version__ == '15.0.1'; from importlib.metadata import version; assert version('snowballstemmer') == '3.1.1'; assert openai.__version__ == '2.24.0' and prompt_toolkit.__version__ == '3.0.52'"], check=True)
 
 
 def install(adapter, *, directory=None, script_path=None, purelibs=None):
