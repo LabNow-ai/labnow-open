@@ -12,22 +12,41 @@ ARG PROFILE_LOCALIZE="aliyun-pub"
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY ./labnow-open-web /tmp/labnow-open-web
-COPY ./labnow-open-etc /opt/labnow-open/etc
 RUN set -eux \
  && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && source /opt/utils/script-setup-core.sh && setup_node_pnpm 12 \
  && cd /tmp/labnow-open-web \
  && export CI=true && export CARBON_TELEMETRY_DISABLED=1 && pnpm install --no-strict-peer-dependencies --ignore-scripts && pnpm run build \
  && mkdir -pv /opt/labnow-open && mv dist /opt/labnow-open/web \
- && ls -alh /opt/labnow-open/web /opt/labnow-open/etc
+ && ls -alh /opt/labnow-open/web
+
+# 运行配置变化不应使前端依赖安装和构建缓存失效。
+COPY ./labnow-open-etc /opt/labnow-open/etc
 
 
 FROM ${BASE_NAMESPACE:+$BASE_NAMESPACE/}${BASE_IMG} AS runtime
 ARG PROFILE_LOCALIZE="aliyun-pub"
+ARG WORKSPACE_IDENTITY_ADAPTER=""
 
 ENV PROFILE_LOCALIZE=${PROFILE_LOCALIZE}
 
 COPY --from=builder /opt/labnow-open/ /opt/labnow-open/
+
+RUN if command -v hermes >/dev/null 2>&1; then \
+      python3 /opt/labnow-open/etc/adapters/install_hermes_guard.py /opt/hermes; \
+      python3 /opt/labnow-open/etc/adapters/build_hermes_web.py /opt/hermes; \
+    fi
+
+RUN if command -v openclaw >/dev/null 2>&1; then \
+      python3 /opt/labnow-open/etc/adapters/install_openclaw_guard.py; \
+    fi
+
+# 仅明确启用的、固定源装配成功的消费者镜像可供 Launcher 选择。
+RUN if [ -n "${WORKSPACE_IDENTITY_ADAPTER}" ]; then \
+      python3 /opt/labnow-open/etc/adapters/install_workspace_runtime.py "${WORKSPACE_IDENTITY_ADAPTER}"; \
+    fi
+LABEL io.labnow.workspace.identity="personal-workspace-v1" \
+      io.labnow.workspace.adapter="${WORKSPACE_IDENTITY_ADAPTER}"
 
 RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  ## install Caddy and link the configuration files
@@ -47,8 +66,8 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type rserver      && printf "[program:rserver]\ncommand=/usr/local/bin/start-rserver.sh\n"     >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/rserver.caddy  ) \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/shiny.caddy    ) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/openclaw.caddy ) \
- && (type hermes       && echo "Skipping configure supervisord for hermes as already processed..."  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/hermes.caddy   ) \
- && (type selkies      && echo "Skipping selkies process as not implemented yet..."                 >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/selkies.caddy  ) \
+ && (type hermes       && echo "Skipping configure supervisord for hermes as already processed..."  || rm -f /opt/labnow-open/etc/CaddyRoutes/hermes.caddy   ) \
+ && (type selkies      && echo "Skipping selkies process as not implemented yet..."                 || rm -f /opt/labnow-open/etc/CaddyRoutes/selkies.caddy  ) \
  ## cleanup of any temporary or cache files to keep the image size down
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && source /opt/utils/script-utils.sh && install__clean
