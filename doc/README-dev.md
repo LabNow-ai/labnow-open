@@ -249,3 +249,19 @@ Hermes固定原生CLI还要求 `prompt_toolkit==3.0.52`；它与OpenAI SDK一样
 真实Agent还发现同一固定插件的两个CommonJS文件含import.meta语法，Node会转作ESM而拒绝exports。适配先核验两个文件SHA，再仅改为原生__dirname/__filename定位；不修改Token加密、读写或渠道策略。原生回归必须执行真实入口、版本模块和Token-store模块，plugins list的loaded状态单独不算模块执行通过。
 
 同一固定插件的reply-dispatcher引用已移除的channel-runtime路径；2026.9.8公开channel-reply-pipeline仍导出原有两个函数。适配核验该文件SHA与两个公开函数后只替换导入路径；全部待改文件预检成功后再写入，不恢复旧SDK根导出。
+
+
+## Hermes 历史会话切换的侧栏重连
+
+固定制品的ChatSidebar状态订阅会立即回放上一代状态。历史切换主动清理连接后，旧closed回放会安排新的退避重试；成功open若不清该定时器，便反复拆除健康连接。Open通过既有Vite构建配置的`hermes_sidecar_reconnect.mjs`加载适配，仅忽略订阅时的初始状态回放，并在成功open时取消尚未执行的重试；真实断连、五次上限及卸载收尾保留。
+
+适配校验完整上游ChatSidebar源码SHA-256，未知版本停止构建，不静默跳过。只在构建模块加载时变换代码，上游源文件不修改、不维护Hermes源码副本；普通Lab与平台托管Lab使用同一连接生命周期，不改变鉴权、运行身份、模型调用或历史聊天内容。
+
+在包含固定Hermes依赖的隔离验证制品中，先执行已有`build_hermes_web.py`，再执行：
+
+```sh
+node tool/tests/test_hermes_sidecar_reconnect.mjs
+node tool/tests/test_hermes_web_prefix.mjs
+```
+
+`HERMES_SOURCE_ROOT`可指定隔离Hermes源码根；默认`/opt/hermes`。第一个脚本临时复制自有React回归测试/配置到隔离树，复用原生Vitest套件，结束删除自身临时文件；拒绝覆盖已有文件，不应在用户运行的Lab中执行。可用`LABNOW_HERMES_RECONNECT_BASELINE=true`运行未适配的反例，预期历史切换测试失败，该模式不是成功验收。真实历史会话切换/重复切换和新聊天仍须单独浏览器验证；新聊天稳定不代表历史恢复已通过。

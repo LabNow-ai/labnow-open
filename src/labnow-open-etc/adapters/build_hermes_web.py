@@ -19,6 +19,8 @@ def build(root: Path):
     source = Path(__file__).with_name('hermes_vite_prefix.config.mjs')
     target = root / 'web/labnow.vite.config.mjs'
     shutil.copyfile(source, target)
+    shutil.copyfile(Path(__file__).with_name("hermes_sidecar_reconnect.mjs"),
+                    root / "web/labnow.sidecar-reconnect.mjs")
     subprocess.run(['node', str(vite / 'bin/vite.js'), 'build', '--config', str(target)], cwd=root / 'web', check=True)
     print('Hermes 前端已使用运行时 Lab 前缀重建；未安装依赖。')
 
