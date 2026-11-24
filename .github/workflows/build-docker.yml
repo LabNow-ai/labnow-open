@@ -98,10 +98,21 @@ jobs:
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=hermes:latest"
           push_image  labnow-open-hermes
 
+  job-gui:
+    name: "labnow-open-gui"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          source ./tool/tool.sh
+          IMG_PREFIX_SRC=quay.io/labnow build_image labnow-open-gui latest ./src/labnow-open.Dockerfile \
+            --target gui --build-arg "PROFILE_LOCALIZE=default" \
+            --build-arg "BASE_IMG=gui-linux@sha256:554dbde12fc67da5383c3a3a3384a78353185fc85450fc62ca4b3974a8f51eda"
+          push_image labnow-open-gui
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   job-sync-images:
-    needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes"]
+    needs: ["job-developer", "job-data-science", "job-openclaw", "job-hermes", "job-gui"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
