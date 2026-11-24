@@ -119,9 +119,11 @@ jobs:
       - env:
           AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
           DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
+          DOCKER_MIRROR_TARGETS: ${{ vars.DOCKER_MIRROR_TARGETS }}
         run: |
           source ./tool/tool.sh
           printf '%s' "$AUTH_FILE_CONTENT" > .github/workflows/auth.json && ls -alh ./.github/workflows
           printenv | grep -v 'PATH' > /tmp/docker.env && echo "REGISTRY_URL=${REGISTRY_DST}" >> /tmp/docker.env
-          docker run --rm --env-file /tmp/docker.env -v $(pwd):/tmp -w /tmp labnow/docker-kit \
-            python /opt/utils/image-syncer/run_jobs.py --auth-file=/tmp/.github/workflows/auth.json
+          docker run --rm --env-file /tmp/docker.env -v $(pwd):/tmp -w /tmp \
+            labnow/docker-kit@sha256:ca36d8b47349baed548cc104139da2375a43799659b3a3b63bd26282acd1f06a \
+            script-sync-image.sh --file-auth=/tmp/.github/workflows/auth.json
