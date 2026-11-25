@@ -5,6 +5,11 @@ const PROGRAM_DEFINITIONS = {
     link: "/selkies/",
     description: "Control this Lab’s Linux desktop in your browser over WebRTC.",
   },
+  "ignis": {
+    displayName: "Ignis",
+    link: "/ignis/",
+    description: "Open and edit this Lab’s Obsidian vaults in your browser.",
+  },
   "jupyter": {
     displayName: "JupyterLab",
     link: "/lab/",

@@ -77,4 +77,24 @@ ENV XVFB_SCREEN=1280x720x24
 ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
 CMD ["/bin/bash", "start-supervisord.sh"]
 
+FROM runtime AS ignis
+
+COPY ./ignis/workspace.patch /tmp/ignis-workspace.patch
+COPY ./ignis/ignis.caddy /opt/labnow-open/etc/CaddyRoutes/ignis.caddy
+COPY --chmod=0755 ./ignis/start-ignis-workspace.sh /usr/local/bin/
+
+ENV IGNIS_OBSIDIAN_PIN=1.14.4 \
+    OBSIDIAN_VERSION=1.14.4
+
+RUN set -eux \
+ && cd /app \
+ && test "$(git rev-parse HEAD)" = 5703ec8ac880e9910233fdbc5715ad7650ea1c2c \
+ && git apply /tmp/ignis-workspace.patch \
+ && IGNIS_BUILD=labnow npm run build \
+ && rm /tmp/ignis-workspace.patch \
+ && printf '\n[program:ignis]\ncommand=/usr/local/bin/start-ignis-workspace.sh\nautostart=true\nenvironment=PORT="8080",PUID="1000",PGID="1000"\n' >> /etc/supervisord/supervisord.conf
+
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["/bin/bash", "start-supervisord.sh"]
+
 FROM runtime AS standard
