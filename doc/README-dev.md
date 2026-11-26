@@ -126,7 +126,7 @@ docker run --rm -it \
 On push to `main`, pull requests, tag releases (`v*`), and weekly schedules, GitHub Actions:
 
 1. Runs **semgrep SAST** (static analysis security testing)
-2. Builds all four image variants in parallel
+2. Builds the image variants in parallel, including Linux Desktop and Ignis
 3. Pushes to `quay.io/labnow/` and `docker.io/labnow/`
 4. Optionally syncs to a mirror registry
 
@@ -134,7 +134,7 @@ See [.github/workflows/build-docker.yml](../.github/workflows/build-docker.yml) 
 
 ### Image Variants
 
-All variants are built from a single [Dockerfile](../src/labnow-open.Dockerfile) and differ only in which base image they layer on top of:
+Variants are built from a single [Dockerfile](../src/labnow-open.Dockerfile). Linux Desktop and Ignis use dedicated targets with service-specific setup. See the [workspace images Skill](skills/labnow-workspace-images/SKILL.md) for their build and verification workflow.
 
 | Image Tag | Base Image | What It Contains |
 |---|---|---|
@@ -142,3 +142,5 @@ All variants are built from a single [Dockerfile](../src/labnow-open.Dockerfile)
 | `labnow-open-data-science` | `data-science-dev:latest` | Full data science stack (Python, R, Jupyter) |
 | `labnow-open-hermes` | `hermes:latest` | Hermes gateway + dashboard |
 | `labnow-open-openclaw` | `openclaw:latest` | OpenClaw AI agent platform |
+| `labnow-open-gui` | Pinned `gui-linux` | Linux desktop over Selkies WebRTC |
+| `labnow-open-ignis` | Pinned `ignis` | Browser Obsidian workspace with a mounted vault |
