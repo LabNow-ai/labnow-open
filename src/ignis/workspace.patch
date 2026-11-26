@@ -56,6 +56,26 @@ index f9f4cb7..7d240ae 100644
 
  async function fetchJson(path, opts = {}) {
    const res = await fetch(`${BASE}${path}`, opts);
+diff --git a/apps/ignis-server/server/static/index-html.js b/apps/ignis-server/server/static/index-html.js
+index ff9d39e..ae0853a 100644
+--- a/apps/ignis-server/server/static/index-html.js
++++ b/apps/ignis-server/server/static/index-html.js
+@@ -29,6 +29,15 @@ function buildIndexHtml() {
+     scripts.push(match[1]);
+   }
+
++  // Obsidian 1.15.1 preloads app.js and starts it from an inline script.
++  // Ignis uses its own HTML, so load the bundle after the discovered libraries.
++  if (
++    !scripts.includes("app.js") &&
++    obsidianHtml.includes('<link href="app.js" rel="preload" as="script"/>')
++  ) {
++    scripts.push("app.js");
++  }
++
+   // Version Obsidian's assets by the Obsidian version so an upgrade busts their immutable cache.
+   // Omitted when the version is unknown, so nothing is pinned immutable against a wrong version.
+   const ov = config.obsidianVersion;
 diff --git a/packages/bridge/src/file-actions.js b/packages/bridge/src/file-actions.js
 index 5800d8e..21c786a 100644
 --- a/packages/bridge/src/file-actions.js

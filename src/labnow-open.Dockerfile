@@ -83,8 +83,8 @@ COPY ./ignis/workspace.patch /tmp/ignis-workspace.patch
 COPY ./ignis/ignis.caddy /opt/labnow-open/etc/CaddyRoutes/ignis.caddy
 COPY --chmod=0755 ./ignis/start-ignis-workspace.sh /usr/local/bin/
 
-ENV IGNIS_OBSIDIAN_PIN=1.14.4 \
-    OBSIDIAN_VERSION=1.14.4
+ENV IGNIS_OBSIDIAN_PIN=1.15.1
+ENV OBSIDIAN_VERSION=$IGNIS_OBSIDIAN_PIN
 
 RUN set -eux \
  && cd /app \
