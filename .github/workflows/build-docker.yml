@@ -98,6 +98,59 @@ jobs:
             --build-arg "PROFILE_LOCALIZE=default" --build-arg "BASE_IMG=hermes:latest"
           push_image  labnow-open-hermes
 
+  job-gui:
+    name: "labnow-open-gui"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - env:
+          AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
+          DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
+          DOCKER_MIRROR_TARGETS: ${{ vars.DOCKER_MIRROR_TARGETS }}
+        run: |
+          source ./tool/tool.sh
+          IMG_PREFIX_SRC=quay.io/labnow build_image labnow-open-gui latest ./src/labnow-open.Dockerfile \
+            --target gui --build-arg "PROFILE_LOCALIZE=default" \
+            --build-arg "BASE_IMG=gui-linux@sha256:554dbde12fc67da5383c3a3a3384a78353185fc85450fc62ca4b3974a8f51eda"
+          push_image labnow-open-gui
+          set +x
+          umask 077
+          auth_file=$(mktemp)
+          trap 'rm -f "$auth_file"' EXIT
+          printf '%s' "$AUTH_FILE_CONTENT" > "$auth_file"
+          docker run --rm -e REGISTRY_URL="$REGISTRY_DST" -e IMG_NAMESPACE \
+            -e DOCKER_MIRROR_REGISTRY -e DOCKER_MIRROR_TARGETS \
+            --mount "type=bind,src=$auth_file,dst=/tmp/registry-auth.json,readonly" \
+            labnow/docker-kit@sha256:ca36d8b47349baed548cc104139da2375a43799659b3a3b63bd26282acd1f06a \
+            script-sync-image.sh --image-namespace-src="$IMG_NAMESPACE" \
+            --file-auth=/tmp/registry-auth.json --image "$IMG_NAMESPACE/labnow-open-gui:$VER"
+
+  job-ignis:
+    name: "labnow-open-ignis"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - env:
+          AUTH_FILE_CONTENT: ${{ secrets.AUTH_FILE_CONTENT }}
+          DOCKER_MIRROR_REGISTRY: ${{ vars.DOCKER_MIRROR_REGISTRY }}
+          DOCKER_MIRROR_TARGETS: ${{ vars.DOCKER_MIRROR_TARGETS }}
+        run: |
+          source ./tool/tool.sh
+          IMG_PREFIX_SRC=quay.io/labnow build_image labnow-open-ignis latest ./src/labnow-open.Dockerfile \
+            --target ignis --build-arg "PROFILE_LOCALIZE=default" \
+            --build-arg "BASE_IMG=ignis@sha256:d03104851ff77bd975495f363d73e3361241bd9b11fff47a7ad9b33c85013d61"
+          push_image labnow-open-ignis
+          set +x
+          umask 077
+          auth_file=$(mktemp)
+          trap 'rm -f "$auth_file"' EXIT
+          printf '%s' "$AUTH_FILE_CONTENT" > "$auth_file"
+          docker run --rm -e REGISTRY_URL="$REGISTRY_DST" -e IMG_NAMESPACE \
+            -e DOCKER_MIRROR_REGISTRY -e DOCKER_MIRROR_TARGETS \
+            --mount "type=bind,src=$auth_file,dst=/tmp/registry-auth.json,readonly" \
+            labnow/docker-kit@sha256:ca36d8b47349baed548cc104139da2375a43799659b3a3b63bd26282acd1f06a \
+            script-sync-image.sh --image-namespace-src="$IMG_NAMESPACE" \
+            --file-auth=/tmp/registry-auth.json --image "$IMG_NAMESPACE/labnow-open-ignis:$VER"
 
   ## Sync all images in this build (listed by "names") to mirror registry.
   job-sync-images:

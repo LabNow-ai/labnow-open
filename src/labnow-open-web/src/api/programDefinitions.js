@@ -1,5 +1,15 @@
 const PROGRAM_DEFINITIONS = {
   "caddy": { displayName: "Caddy Server", hidden: true },
+  "selkies": {
+    displayName: "Linux Desktop",
+    link: "/selkies/",
+    description: "Control this Lab’s Linux desktop in your browser over WebRTC.",
+  },
+  "ignis": {
+    displayName: "Ignis",
+    link: "/ignis/",
+    description: "Open and edit this Lab’s Obsidian vaults in your browser.",
+  },
   "jupyter": {
     displayName: "JupyterLab",
     link: "/lab/",

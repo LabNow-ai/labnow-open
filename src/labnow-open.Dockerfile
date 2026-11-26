@@ -48,7 +48,13 @@ RUN set -eux && source /opt/utils/script-localize.sh ${PROFILE_LOCALIZE} \
  && (type shiny-server && printf "[program:rshiny]\ncommand=/usr/local/bin/start-shiny-server.sh\n" >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/shiny.caddy    ) \
  && (type openclaw     && printf "[program:openclaw]\ncommand=/usr/local/bin/start-openclaw.sh\n"   >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/openclaw.caddy ) \
  && (type hermes       && echo "Skipping configure supervisord for hermes as already processed..."  >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/hermes.caddy   ) \
- && (type selkies      && echo "Skipping selkies process as not implemented yet..."                 >> /etc/supervisord/supervisord.conf || rm -f /opt/labnow-open/etc/CaddyRoutes/selkies.caddy  ) \
+ && (if type selkies; then \
+      printf '%s\n' '[program:selkies]' \
+        'command=/opt/selkies/docker-entrypoint.sh' \
+        'autostart=true' \
+        'environment=SELKIES_ADDR="127.0.0.1",SELKIES_PORT="8080",SELKIES_MODE="webrtc",SELKIES_ENABLE_DUAL_MODE="false"' \
+        >> /etc/supervisord/supervisord.conf; \
+    else rm /opt/labnow-open/etc/CaddyRoutes/selkies.caddy; fi) \
  ## cleanup of any temporary or cache files to keep the image size down
  && chmod +x /usr/local/bin/start-caddy.sh /usr/local/bin/start-supervisord.sh \
  && source /opt/utils/script-utils.sh && install__clean
@@ -58,3 +64,37 @@ ENV STATIC_DIR=/opt/labnow-open/web
 ENV URL_PREFIX="/"
 EXPOSE 80
 CMD ["/bin/bash", "start-supervisord.sh"]
+
+FROM runtime AS gui
+
+# The base entrypoint traces argv, which may contain TURN credentials.
+RUN sed -i '/^set -x$/d' /opt/selkies/docker-entrypoint.sh \
+ && apt-get -qq update \
+ && apt-get -qq install -y --no-install-recommends xterm \
+ && source /opt/utils/script-utils.sh && install__clean
+
+ENV XVFB_SCREEN=1280x720x24
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["/bin/bash", "start-supervisord.sh"]
+
+FROM runtime AS ignis
+
+COPY ./ignis/workspace.patch /tmp/ignis-workspace.patch
+COPY ./ignis/ignis.caddy /opt/labnow-open/etc/CaddyRoutes/ignis.caddy
+COPY --chmod=0755 ./ignis/start-ignis-workspace.sh /usr/local/bin/
+
+ENV IGNIS_OBSIDIAN_PIN=1.15.1
+ENV OBSIDIAN_VERSION=$IGNIS_OBSIDIAN_PIN
+
+RUN set -eux \
+ && cd /app \
+ && test "$(git rev-parse HEAD)" = 5703ec8ac880e9910233fdbc5715ad7650ea1c2c \
+ && git apply /tmp/ignis-workspace.patch \
+ && IGNIS_BUILD=labnow npm run build \
+ && rm /tmp/ignis-workspace.patch \
+ && printf '\n[program:ignis]\ncommand=/usr/local/bin/start-ignis-workspace.sh\nautostart=true\nenvironment=PORT="8080",PUID="1000",PGID="1000"\n' >> /etc/supervisord/supervisord.conf
+
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["/bin/bash", "start-supervisord.sh"]
+
+FROM runtime AS standard

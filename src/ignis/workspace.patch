@@ -1,0 +1,566 @@
+diff --git a/apps/ignis-server/scripts/entrypoint.sh b/apps/ignis-server/scripts/entrypoint.sh
+index fc14a76..09e7e8b 100644
+--- a/apps/ignis-server/scripts/entrypoint.sh
++++ b/apps/ignis-server/scripts/entrypoint.sh
+@@ -44,7 +44,7 @@ else
+ fi
+
+
+-OBSIDIAN_DIR="/app/obsidian-app"
++OBSIDIAN_DIR="${OBSIDIAN_ASSETS_PATH:-/app/obsidian-app}"
+ OBSIDIAN_PIN="${IGNIS_OBSIDIAN_PIN:?IGNIS_OBSIDIAN_PIN is not set}"
+ OBSIDIAN_STAMP="$OBSIDIAN_DIR/.obsidian-version"
+
+@@ -139,18 +139,16 @@ fi
+
+
+ # Must run after the Obsidian install, which unpacks as root.
+-mkdir -p /app/data
++mkdir -p "$DATA_ROOT"
+ # Best-effort: a read-only or root_squash mount forbids chown, but PUID/PGID may already have access.
+-for dir in /app/obsidian-app /app/data /vaults; do
+-  chown -R "$PUID:$PGID" "$dir" 2>/dev/null || echo "[ignis] WARNING: could not chown $dir (read-only mount or NFS root_squash); continuing. Ensure PUID/PGID can read+write it."
+-done
++chown -R "$PUID:$PGID" "$OBSIDIAN_DIR" "$DATA_ROOT" "$VAULT_ROOT"
+
+ # Install obsidian-headless (ob CLI) if not already present.
+ # Not included in the image for legal reasons - installed at runtime.
+ if ! command -v ob &>/dev/null; then
+   echo "[ignis] Installing obsidian-headless..."
+
+-  if npm install -g --prefix /usr/local obsidian-headless --silent 2>/dev/null; then
++  if timeout --kill-after=5s 25s npm install -g --prefix /usr/local obsidian-headless; then
+     OB_VERSION=$(ob --version 2>/dev/null)
+
+     if [ -n "$OB_VERSION" ]; then
+diff --git a/apps/ignis-server/server/index.js b/apps/ignis-server/server/index.js
+index cae6f6d..b628704 100644
+--- a/apps/ignis-server/server/index.js
++++ b/apps/ignis-server/server/index.js
+@@ -184,7 +184,7 @@ app.use(express.static(path.join(REPO_ROOT, "packages", "shim", "dist")));
+
+ app.use(express.static(config.obsidianAssetsPath));
+
+-const server = app.listen(config.port, async () => {
++const server = app.listen(Number(config.port), "127.0.0.1", async () => {
+   console.log(`[ignis] Server running on http://localhost:${config.port}`);
+   console.log(`[ignis] Vault root: ${config.vaultRoot}`);
+   console.log(`[ignis] Vaults: ${Object.keys(config.vaults).join(", ")}`);
+diff --git a/apps/ignis-server/server/plugins/headless-sync/obsidian/src/api.js b/apps/ignis-server/server/plugins/headless-sync/obsidian/src/api.js
+index f9f4cb7..7d240ae 100644
+--- a/apps/ignis-server/server/plugins/headless-sync/obsidian/src/api.js
++++ b/apps/ignis-server/server/plugins/headless-sync/obsidian/src/api.js
+@@ -1,4 +1,4 @@
+-const BASE = "/api/ext/headless-sync";
++const BASE = "./api/ext/headless-sync";
+
+ async function fetchJson(path, opts = {}) {
+   const res = await fetch(`${BASE}${path}`, opts);
+diff --git a/apps/ignis-server/server/static/index-html.js b/apps/ignis-server/server/static/index-html.js
+index ff9d39e..ae0853a 100644
+--- a/apps/ignis-server/server/static/index-html.js
++++ b/apps/ignis-server/server/static/index-html.js
+@@ -29,6 +29,15 @@ function buildIndexHtml() {
+     scripts.push(match[1]);
+   }
+
++  // Obsidian 1.15.1 preloads app.js and starts it from an inline script.
++  // Ignis uses its own HTML, so load the bundle after the discovered libraries.
++  if (
++    !scripts.includes("app.js") &&
++    obsidianHtml.includes('<link href="app.js" rel="preload" as="script"/>')
++  ) {
++    scripts.push("app.js");
++  }
++
+   // Version Obsidian's assets by the Obsidian version so an upgrade busts their immutable cache.
+   // Omitted when the version is unknown, so nothing is pinned immutable against a wrong version.
+   const ov = config.obsidianVersion;
+diff --git a/packages/bridge/src/file-actions.js b/packages/bridge/src/file-actions.js
+index 5800d8e..21c786a 100644
+--- a/packages/bridge/src/file-actions.js
++++ b/packages/bridge/src/file-actions.js
+@@ -19,7 +19,7 @@ function triggerDownload(endpoint, filePath, downloadName) {
+
+ async function copyIgnisUrl(file) {
+   const url =
+-    `${window.location.origin}/?vault=${encodeURIComponent(getVaultId())}` +
++    `${new URL("./", window.location.href)}?vault=${encodeURIComponent(getVaultId())}` +
+     `&file=${encodeURIComponent(file.path)}`;
+
+   const copied = await writeToClipboard(url);
+diff --git a/packages/bridge/src/image-retry.js b/packages/bridge/src/image-retry.js
+index 452bb15..de5cacb 100644
+--- a/packages/bridge/src/image-retry.js
++++ b/packages/bridge/src/image-retry.js
+@@ -13,7 +13,7 @@ function isVaultImage(el) {
+
+     return (
+       url.origin === window.location.origin &&
+-      url.pathname.startsWith("/vault-files/")
++      url.pathname.startsWith(new URL("./vault-files/", window.location.href).pathname)
+     );
+   } catch {
+     return false;
+diff --git a/packages/bridge/src/plugin-registry.js b/packages/bridge/src/plugin-registry.js
+index 3e95499..7d2c93b 100644
+--- a/packages/bridge/src/plugin-registry.js
++++ b/packages/bridge/src/plugin-registry.js
+@@ -5,7 +5,7 @@ const knownIds = new Set(["ignis-bridge"]);
+
+ async function refresh() {
+   try {
+-    const res = await fetch("/api/plugins");
++    const res = await fetch("./api/plugins");
+     const plugins = await res.json();
+
+     // Keep ignis-bridge, add all bundled plugin IDs.
+diff --git a/packages/bridge/src/settings/general-tab.js b/packages/bridge/src/settings/general-tab.js
+index 0c8b491..a3a2a6d 100644
+--- a/packages/bridge/src/settings/general-tab.js
++++ b/packages/bridge/src/settings/general-tab.js
+@@ -14,17 +14,17 @@ const ICON_LINKS = [
+   {
+     label: "Discord",
+     href: "https://discord.gg/rgyXBAeNMM",
+-    icon: "/assets/discord.svg",
++    icon: "./assets/discord.svg",
+   },
+   {
+     label: "Ko-fi",
+     href: "https://ko-fi.com/nystik",
+-    icon: "/assets/kofi.svg",
++    icon: "./assets/kofi.svg",
+   },
+   {
+     label: "GitHub Sponsors",
+     href: "https://github.com/sponsors/Nystik-gh",
+-    icon: "/assets/githubsponsors.svg",
++    icon: "./assets/githubsponsors.svg",
+   },
+ ];
+
+@@ -85,7 +85,7 @@ function addHeader(containerEl) {
+
+   header.createEl("img", {
+     cls: "ignis-header-logo",
+-    attr: { src: "/assets/ignis.webp", alt: "Ignis" },
++    attr: { src: "./assets/ignis.webp", alt: "Ignis" },
+   });
+
+   const info = header.createDiv("ignis-header-info");
+@@ -117,7 +117,7 @@ function addHeader(containerEl) {
+
+   githubLink.createEl("img", {
+     cls: "ignis-github-icon",
+-    attr: { src: "/assets/github.svg", alt: "GitHub" },
++    attr: { src: "./assets/github.svg", alt: "GitHub" },
+   });
+
+   checkForUpdate(version).then((latest) => {
+diff --git a/packages/bridge/src/settings/plugin-list.js b/packages/bridge/src/settings/plugin-list.js
+index 8d2ae6b..9029bae 100644
+--- a/packages/bridge/src/settings/plugin-list.js
++++ b/packages/bridge/src/settings/plugin-list.js
+@@ -11,7 +11,7 @@ function loadFailed() {
+
+ async function refresh() {
+   try {
+-    const res = await fetch("/api/plugins");
++    const res = await fetch("./api/plugins");
+
+     if (!res.ok) {
+       throw new Error(`HTTP ${res.status}`);
+diff --git a/packages/bridge/src/settings/plugin-list.test.js b/packages/bridge/src/settings/plugin-list.test.js
+index 43714ec..073d343 100644
+--- a/packages/bridge/src/settings/plugin-list.test.js
++++ b/packages/bridge/src/settings/plugin-list.test.js
+@@ -51,7 +51,7 @@ describe("plugin-list", () => {
+     expect(pluginList.get()).toBe(null);
+
+     expect(await pluginList.refresh()).toBe(true);
+-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/plugins");
++    expect(globalThis.fetch).toHaveBeenCalledWith("./api/plugins");
+     expect(pluginList.get()).toEqual(discoveredPlugins());
+   });
+
+diff --git a/packages/bridge/src/settings/server-settings.js b/packages/bridge/src/settings/server-settings.js
+index 2034e9a..3a7aea9 100644
+--- a/packages/bridge/src/settings/server-settings.js
++++ b/packages/bridge/src/settings/server-settings.js
+@@ -18,7 +18,7 @@ function set(value) {
+
+ async function refresh() {
+   try {
+-    const res = await fetch("/api/settings");
++    const res = await fetch("./api/settings");
+
+     if (!res.ok) {
+       throw new Error(`HTTP ${res.status}`);
+@@ -42,7 +42,7 @@ async function refresh() {
+
+ async function save(partial) {
+   try {
+-    const res = await fetch("/api/settings", {
++    const res = await fetch("./api/settings", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(partial),
+diff --git a/packages/bridge/src/settings/server-settings.test.js b/packages/bridge/src/settings/server-settings.test.js
+index e0f3df5..30b7f41 100644
+--- a/packages/bridge/src/settings/server-settings.test.js
++++ b/packages/bridge/src/settings/server-settings.test.js
+@@ -22,7 +22,7 @@ describe("server-settings", () => {
+     globalThis.fetch = vi.fn(async () => respond(200, { writeCoalesceMs: 0 }));
+
+     expect(await serverSettings.refresh()).toBe(true);
+-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/settings");
++    expect(globalThis.fetch).toHaveBeenCalledWith("./api/settings");
+     expect(serverSettings.get()).toEqual({ writeCoalesceMs: 0 });
+   });
+
+@@ -75,7 +75,7 @@ describe("server-settings", () => {
+     await serverSettings.save({ writeCoalesceMs: 250 });
+
+     expect(globalThis.fetch).toHaveBeenCalledWith(
+-      "/api/settings",
++      "./api/settings",
+       expect.objectContaining({ method: "POST" }),
+     );
+     expect(serverSettings.get()).toEqual({
+diff --git a/packages/services/src/vault-service.js b/packages/services/src/vault-service.js
+index 503376b..5133143 100644
+--- a/packages/services/src/vault-service.js
++++ b/packages/services/src/vault-service.js
+@@ -1,4 +1,4 @@
+-const API_BASE = "/api/vault";
++const API_BASE = "./api/vault";
+
+ async function fetchJson(url, options) {
+   const res = await fetch(url, options);
+@@ -94,7 +94,7 @@ export const vaultService = {
+       history.replaceState(
+         history.state,
+         "",
+-        "/?vault=" + encodeURIComponent(newName),
++        "?vault=" + encodeURIComponent(newName),
+       );
+     }
+
+@@ -128,11 +128,13 @@ export const vaultService = {
+   },
+
+   openVault(id) {
+-    localStorage.setItem("last-vault", id);
++    localStorage.setItem(window.location.pathname + "last-vault", id);
+
+     const target = window.parent !== window ? window.parent : window;
+
+-    target.location.href = "/?vault=" + encodeURIComponent(id);
++    const url = new URL("./", window.location.href);
++    url.searchParams.set("vault", id);
++    target.location.href = url.href;
+   },
+
+   setVaultTrust(vaultId, trusted = true) {
+@@ -149,8 +151,8 @@ export const vaultService = {
+       localStorage.removeItem(pluginKey + oldId);
+     }
+
+-    if (localStorage.getItem("last-vault") === oldId) {
+-      localStorage.setItem("last-vault", newId);
++    if (localStorage.getItem(window.location.pathname + "last-vault") === oldId) {
++      localStorage.setItem(window.location.pathname + "last-vault", newId);
+     }
+   },
+ };
+diff --git a/packages/shim/src/css-overrides.js b/packages/shim/src/css-overrides.js
+index 2fc71b3..ed54fad 100644
+--- a/packages/shim/src/css-overrides.js
++++ b/packages/shim/src/css-overrides.js
+@@ -3,7 +3,7 @@ import bridgeCss from "@ignis/bridge/styles.css";
+ export function installCssOverrides() {
+   const link = document.createElement("link");
+   link.rel = "stylesheet";
+-  link.href = "/assets/overrides.css";
++  link.href = "./assets/overrides.css";
+   link.setAttribute("data-ignis", "css-overrides");
+   document.head.appendChild(link);
+
+diff --git a/packages/shim/src/electron/ipc-renderer.js b/packages/shim/src/electron/ipc-renderer.js
+index 24c099a..036781b 100644
+--- a/packages/shim/src/electron/ipc-renderer.js
++++ b/packages/shim/src/electron/ipc-renderer.js
+@@ -51,7 +51,7 @@ const syncHandlers = {
+   },
+
+   "file-url": () =>
+-    "/vault-files/" + encodeURIComponent(window.__currentVaultId || "") + "/",
++    "./vault-files/" + encodeURIComponent(window.__currentVaultId || "") + "/",
+
+   "disable-update": () => true,
+   update: () => "",
+diff --git a/packages/shim/src/fs/indexer-prefetch.js b/packages/shim/src/fs/indexer-prefetch.js
+index eaf5756..5f9eec6 100644
+--- a/packages/shim/src/fs/indexer-prefetch.js
++++ b/packages/shim/src/fs/indexer-prefetch.js
+@@ -170,7 +170,7 @@ function selectPrefetchTargets(tree, totalBudget) {
+ }
+
+ export async function fetchBatch(vaultId, paths) {
+-  const res = await fetch("/api/fs/batch-read", {
++  const res = await fetch("./api/fs/batch-read", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({ vault: vaultId, paths }),
+diff --git a/packages/shim/src/fs/transport.js b/packages/shim/src/fs/transport.js
+index c13ff0b..f656378 100644
+--- a/packages/shim/src/fs/transport.js
++++ b/packages/shim/src/fs/transport.js
+@@ -1,4 +1,4 @@
+-const API_BASE = "/api/fs";
++const API_BASE = "./api/fs";
+
+ function normPath(p) {
+   return (p || "").replace(/^\/+/, "");
+@@ -77,7 +77,7 @@ function requireType(contentType, expected) {
+ }
+
+ async function request(method, endpoint, params = {}, { accept, headers }) {
+-  const url = new URL(API_BASE + endpoint, window.location.origin);
++  const url = new URL(API_BASE + endpoint, window.location.href);
+
+   const controller = new AbortController();
+   const options = { method, signal: controller.signal };
+@@ -160,7 +160,7 @@ function requestSync(
+   params = {},
+   { accept, binaryResponse },
+ ) {
+-  const url = new URL(API_BASE + endpoint, window.location.origin);
++  const url = new URL(API_BASE + endpoint, window.location.href);
+
+   if (method === "GET" || method === "DELETE") {
+     if (vaultId()) {
+diff --git a/packages/shim/src/fs/transport.test.js b/packages/shim/src/fs/transport.test.js
+index c4a2bc0..0fe2fef 100644
+--- a/packages/shim/src/fs/transport.test.js
++++ b/packages/shim/src/fs/transport.test.js
+@@ -33,7 +33,7 @@ function response({
+ function servedType(url) {
+   const { pathname, searchParams } = new URL(url);
+
+-  if (pathname !== "/api/fs/readFile") {
++  if (pathname !== "/studio/user/test/notes/ignis/api/fs/readFile") {
+     return "application/json; charset=utf-8";
+   }
+
+@@ -50,7 +50,7 @@ beforeEach(() => {
+   );
+   globalThis.fetch = fetchMock;
+   globalThis.window = {
+-    location: { origin: "http://localhost" },
++    location: { href: "http://localhost/studio/user/test/notes/ignis/" },
+     __currentVaultId: "v",
+   };
+ });
+diff --git a/packages/shim/src/init.js b/packages/shim/src/init.js
+index bde9230..6ad04ce 100644
+--- a/packages/shim/src/init.js
++++ b/packages/shim/src/init.js
+@@ -51,7 +51,7 @@ function fetchVaultInfo(vaultId) {
+     const vaultParam = vaultId ? "?vault=" + encodeURIComponent(vaultId) : "";
+     const xhr = new XMLHttpRequest();
+
+-    xhr.open("GET", "/api/vault/info" + vaultParam, false);
++    xhr.open("GET", "./api/vault/info" + vaultParam, false);
+     xhr.send();
+
+     if (xhr.status === 200) {
+@@ -67,7 +67,7 @@ function fetchVaultInfo(vaultId) {
+ export function resolveVaultId() {
+   const urlParams = new URLSearchParams(window.location.search);
+   window.__currentVaultId =
+-    urlParams.get("vault") || localStorage.getItem("last-vault") || "";
++    urlParams.get("vault") || localStorage.getItem(window.location.pathname + "last-vault") || "";
+
+   if (!window.__currentVaultId) {
+     const info = fetchVaultInfo("");
+@@ -90,7 +90,7 @@ function fetchBootstrap() {
+
+     xhr.open(
+       "GET",
+-      "/api/bootstrap?vault=" + encodeURIComponent(window.__currentVaultId),
++      "./api/bootstrap?vault=" + encodeURIComponent(window.__currentVaultId),
+       false,
+     );
+     xhr.send();
+@@ -107,7 +107,7 @@ function fetchBootstrap() {
+
+ function applyVaultInfo(info) {
+   window.__currentVaultId = info.id;
+-  localStorage.setItem("last-vault", info.id);
++  localStorage.setItem(window.location.pathname + "last-vault", info.id);
+   window.__obsidianVersion = info.version || "0.0.0";
+
+   window.__vaultConfig = {
+@@ -161,7 +161,7 @@ function initMetadataCacheFallback() {
+
+     const xhr = new XMLHttpRequest();
+
+-    xhr.open("GET", "/api/fs/tree" + vaultParam, false);
++    xhr.open("GET", "./api/fs/tree" + vaultParam, false);
+     xhr.send();
+
+     if (xhr.status === 200) {
+@@ -228,7 +228,7 @@ function initCoreSyncGuardFallback() {
+   try {
+     const xhr = new XMLHttpRequest();
+
+-    xhr.open("GET", "/api/plugins", false);
++    xhr.open("GET", "./api/plugins", false);
+     xhr.send();
+
+     if (xhr.status === 200) {
+diff --git a/packages/shim/src/init.test.js b/packages/shim/src/init.test.js
+index c6ec902..b1cb19c 100644
+--- a/packages/shim/src/init.test.js
++++ b/packages/shim/src/init.test.js
+@@ -23,7 +23,8 @@ describe("resolveVaultId", () => {
+     document: { body: { classList: { contains: () => false } } },
+     location: {
+       origin: "http://localhost",
+-      href: "http://localhost/",
++      href: "http://localhost/studio/user/test/notes/ignis/",
++      pathname: "/studio/user/test/notes/ignis/",
+       search: "",
+     },
+     localStorage: {
+@@ -64,7 +65,7 @@ describe("resolveVaultId", () => {
+   });
+
+   it("falls back to the last opened vault without asking the server", () => {
+-    storage.set("last-vault", "Saved");
++    storage.set("/studio/user/test/notes/ignis/last-vault", "Saved");
+     resolveVaultId();
+
+     expect(globalThis.__currentVaultId).toBe("Saved");
+@@ -74,7 +75,7 @@ describe("resolveVaultId", () => {
+   it("asks the server for its default vault when neither is known", () => {
+     resolveVaultId();
+
+-    expect(requests).toEqual(["/api/vault/info"]);
++    expect(requests).toEqual(["./api/vault/info"]);
+     expect(globalThis.__currentVaultId).toBe("Abra");
+   });
+
+diff --git a/packages/shim/src/util/proxy.js b/packages/shim/src/util/proxy.js
+index 9044f58..bf8011c 100644
+--- a/packages/shim/src/util/proxy.js
++++ b/packages/shim/src/util/proxy.js
+@@ -33,7 +33,7 @@ export async function proxyFetch({ url, method, headers, body }) {
+   // Use native fetch to avoid an unnecessary call through the shim. proxy is already same origin.
+   const nativeFetch = window.__originalFetch || fetch;
+
+-  const res = await nativeFetch("/api/proxy", {
++  const res = await nativeFetch("./api/proxy", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify(payload),
+diff --git a/packages/shim/src/util/send-request.test.js b/packages/shim/src/util/send-request.test.js
+index 41ca306..aaf7d2b 100644
+--- a/packages/shim/src/util/send-request.test.js
++++ b/packages/shim/src/util/send-request.test.js
+@@ -27,7 +27,7 @@ beforeEach(() => {
+   globalThis.window = {
+     location: { origin: "https://ignis.test" },
+     __originalFetch: async (url, opts) => {
+-      if (url === "/api/proxy") {
++      if (url === "./api/proxy") {
+         proxied.push(JSON.parse(opts.body));
+         return fakeProxyResponse();
+       }
+diff --git a/packages/shim/src/ws-client.js b/packages/shim/src/ws-client.js
+index a00b9e2..6fb6033 100644
+--- a/packages/shim/src/ws-client.js
++++ b/packages/shim/src/ws-client.js
+@@ -87,8 +87,9 @@ export function createWsClient() {
+
+     setState("connecting");
+
+-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+-    const url = `${protocol}//${window.location.host}/ws?vault=${encodeURIComponent(vaultId)}`;
++    const url = new URL("./ws", window.location.href);
++    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
++    url.searchParams.set("vault", vaultId);
+
+     try {
+       ws = new WebSocket(url);
+diff --git a/packages/shim/src/ws-client.test.js b/packages/shim/src/ws-client.test.js
+index a148b3f..5a8c1c0 100644
+--- a/packages/shim/src/ws-client.test.js
++++ b/packages/shim/src/ws-client.test.js
+@@ -18,7 +18,7 @@ beforeEach(() => {
+
+   FakeWebSocket.OPEN = 1;
+   globalThis.WebSocket = FakeWebSocket;
+-  globalThis.window = { location: { protocol: "http:", host: "localhost" } };
++  globalThis.window = { location: { href: "https://localhost/studio/user/test/notes/ignis/" } };
+   vi.useFakeTimers();
+ });
+
+@@ -35,6 +35,7 @@ describe("ws-client onOpen", () => {
+     client.onOpen(onOpen);
+
+     client.connect("v1");
++    expect(sockets[0].url.href).toBe("wss://localhost/studio/user/test/notes/ignis/ws?vault=v1");
+     sockets[0].onopen();
+     expect(onOpen).toHaveBeenCalledTimes(1);
+
+diff --git a/packages/ui/src/views/SyncSetupModal.svelte b/packages/ui/src/views/SyncSetupModal.svelte
+index c75e9cb..1fa7b55 100644
+--- a/packages/ui/src/views/SyncSetupModal.svelte
++++ b/packages/ui/src/views/SyncSetupModal.svelte
+@@ -24,7 +24,7 @@
+     error = "";
+
+     try {
+-      const res = await fetch("/api/ext/headless-sync/remote-vaults");
++      const res = await fetch("./api/ext/headless-sync/remote-vaults");
+
+       if (!res.ok) {
+         const data = await res.json().catch(() => ({}));
+@@ -45,7 +45,7 @@
+     error = "";
+
+     try {
+-      const res = await fetch("/api/ext/headless-sync/setup", {
++      const res = await fetch("./api/ext/headless-sync/setup", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+diff --git a/packages/ui/src/views/VaultManager.svelte b/packages/ui/src/views/VaultManager.svelte
+index 59c2048..0aab858 100644
+--- a/packages/ui/src/views/VaultManager.svelte
++++ b/packages/ui/src/views/VaultManager.svelte
+@@ -50,7 +50,7 @@
+
+   async function fetchVersion() {
+     try {
+-      const res = await fetch("/api/version");
++      const res = await fetch("./api/version");
+       const data = await res.json();
+       version = data.version;
+     } catch (e) {
+diff --git a/packages/ui/src/views/sync/CreateVaultForm.svelte b/packages/ui/src/views/sync/CreateVaultForm.svelte
+index 28e2149..a25e98e 100644
+--- a/packages/ui/src/views/sync/CreateVaultForm.svelte
++++ b/packages/ui/src/views/sync/CreateVaultForm.svelte
+@@ -27,7 +27,7 @@
+     creating = true;
+
+     try {
+-      const res = await fetch("/api/ext/headless-sync/create-remote-vault", {
++      const res = await fetch("./api/ext/headless-sync/create-remote-vault", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({

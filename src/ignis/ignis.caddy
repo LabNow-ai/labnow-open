@@ -1,0 +1,11 @@
+@ignis_no_slash path {$URL_PREFIX:}ignis
+redir @ignis_no_slash {path}/ 308
+
+@ignis path {$URL_PREFIX:}ignis/*
+handle @ignis {
+    uri strip_prefix {$URL_PREFIX:}ignis
+    reverse_proxy 127.0.0.1:8080 {
+        header_up -Authorization
+        header_up -Cookie
+    }
+}
